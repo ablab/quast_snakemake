@@ -7,3 +7,4 @@ channels:
 dependencies:
   - minimap2
   - bottle
+  - glimmerhmm

@@ -123,6 +123,8 @@ rule glimmer:
     input:
         contig=join(corrected_dirpath,"{sample}.fasta"),
         reference_csv=join(corrected_dirpath, corrected_reference + ".csv"),
+    conda:
+        "envs/basic.yaml"
     log:
         out = join(glimmer_dirpath, '{sample}.log'),
         err = join(glimmer_dirpath, '{sample}.err')
