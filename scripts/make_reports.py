@@ -1,10 +1,10 @@
 import argparse
 from ast import literal_eval
-from os.path import dirname, exists
+from os.path import exists
 
+from src.aligned_stats import parse_aligner_stats
 from scripts.gene_finding.prepare_genome_analyzer import parse_results
 from src import basic_stats
-from src.align_contigs import AlignerStatus
 from src.assembly import Assembly
 from src.common import *
 from src.genes_parser import Gene
@@ -15,7 +15,7 @@ from src.plotter_aux import dict_color_and_ls, save_colors_and_ls
 from src.save_results import *
 
 
-def parse_genome_stats(reports, reference_csv, labels, output_dirpath, genome_analyzer_dirpath):
+def parse_genome_stats(reports, reference_csv, assemblies, labels, output_dirpath, genome_analyzer_dirpath):
     # from quast_libs import search_references_meta
     # if search_references_meta.is_quast_first_run:
     #    coords_dirpath = join(coords_dirpath, 'raw')
@@ -108,14 +108,10 @@ def parse_genome_stats(reports, reference_csv, labels, output_dirpath, genome_an
                     reports[label].add_field(field, '%s + %s part' % (full, part))
                     if field == reporting.Fields.OPERONS:
                         ref_operons_num = results[reporting.Fields.OPERONS + "_full"] + results[reporting.Fields.OPERONS + "_partial"]
-                        if qconfig.html_report:
-                            html_saver.save_features_in_contigs(output_dirpath, labels, 'operons',
-                                                files_operons_in_contigs, ref_operons_num)
+
                     if field == reporting.Fields.GENES:
                         ref_genes_num = results[reporting.Fields.GENES + "_full"] + results[reporting.Fields.GENES + "_partial"]
-                        if qconfig.html_report:
-                            html_saver.save_features_in_contigs(output_dirpath, labels, 'features',
-                                                files_operons_in_contigs, ref_genes_num)
+
             res_file.write('\n')
     res_file.close()
 
@@ -132,20 +128,20 @@ def parse_genome_stats(reports, reference_csv, labels, output_dirpath, genome_an
         if ref_genes_num:
             plotter.genes_operons_plot(ref_genes_num, labels, files_features_in_contigs,
                                        genome_analyzer_dirpath + '/features_cumulative_plot', 'genomic features')
-            # TODO: fix
-            # plotter.frc_plot(output_dirpath, ref_fpath, aligned_contigs_fpaths, contigs_aligned_lengths,
-            #                 files_unsorted_features_in_contigs,
-            #                 genome_stats_dirpath + '/features_frcurve_plot', 'genomic features')
+
+            plotter.frc_plot(output_dirpath, reference_chromosomes, labels, [asm.aligned_lengths_by_contigs for asm in assemblies],
+                             files_unsorted_features_in_contigs,
+                             genome_analyzer_dirpath + '/features_frcurve_plot', 'genomic features')
             plotter.histogram(labels, full_found_genes,
                               genome_analyzer_dirpath + '/complete_features_histogram',
                               '# complete genomic features')
         if ref_operons_num:
             plotter.genes_operons_plot(ref_operons_num, labels, files_operons_in_contigs,
                                        genome_analyzer_dirpath + '/operons_cumulative_plot', 'operons')
-            # TODO: fix
-            # plotter.frc_plot(output_dirpath, ref_fpath, aligned_contigs_fpaths, contigs_aligned_lengths,
-            #                 files_unsorted_operons_in_contigs,
-            #                 genome_stats_dirpath + '/operons_frcurve_plot', 'operons')
+
+            plotter.frc_plot(output_dirpath, reference_chromosomes, labels, [asm.aligned_lengths_by_contigs for asm in assemblies],
+                             files_unsorted_operons_in_contigs,
+                             genome_analyzer_dirpath + '/operons_frcurve_plot', 'operons')
             plotter.histogram(labels, full_found_operons,
                               genome_analyzer_dirpath + '/complete_operons_histogram',
                               '# complete operons')
@@ -154,54 +150,6 @@ def parse_genome_stats(reports, reference_csv, labels, output_dirpath, genome_an
                           'Genome fraction, %', top_value=100)
 
     print_info('Done.')
-
-
-def parse_aligner_stats(reports, output_dirpath, assemblies, labels, ref_fpath, genome_size):
-    for asm in assemblies:
-        asm.parse_results()
-    aligner_statuses = [asm.status for asm in assemblies]
-    '''if AlignerStatus.OK in aligner_statuses:
-        if qconfig.is_combined_ref:
-            save_combined_ref_stats(results, contigs_fpaths, ref_labels_by_chromosomes, output_dir, logger)'''
-
-    saved_reports = []
-    for index, label in enumerate(labels):
-        if assemblies[index].status == AlignerStatus.OK:
-            saved_reports.append(save_result(assemblies[index].results, reports[label], label, ref_fpath, genome_size))
-        elif assemblies[index].status == AlignerStatus.NOT_ALIGNED:
-            save_result_for_unaligned(assemblies[index].results, reports[label])
-
-    if AlignerStatus.OK in aligner_statuses:
-        reporting.save_misassemblies(reports, output_dirpath)
-        reporting.save_unaligned(reports, output_dirpath)
-        if qconfig.draw_plots:
-            plotter.draw_misassemblies_plot(saved_reports, join(output_dirpath, 'misassemblies_plot'), 'Misassemblies')
-        if qconfig.draw_plots or qconfig.html_report:
-            misassemblies_in_contigs = dict(
-                (labels[i], assemblies[i].misassemblies_in_contigs) for i in range(len(labels)))
-            plotter.frc_plot(dirname(output_dirpath), ref_fpath, labels,
-                             [asm.aligned_lengths_by_contigs for asm in assemblies],
-                             misassemblies_in_contigs,
-                             join(output_dirpath, 'misassemblies_frcurve_plot'), 'misassemblies')
-
-    oks = aligner_statuses.count(AlignerStatus.OK)
-    not_aligned = aligner_statuses.count(AlignerStatus.NOT_ALIGNED)
-    failed = aligner_statuses.count(AlignerStatus.FAILED)
-    errors = aligner_statuses.count(AlignerStatus.ERROR)
-    problems = not_aligned + failed + errors
-    all = len(aligner_statuses)
-
-    # logger._num_nf_errors = num_nf_errors + errors
-
-    if oks == all:
-        print_info('Done.')
-    if oks < all and problems < all:
-        print_info('Done for ' + str(all - problems) + ' out of ' + str(
-            all) + '. For the rest, only basic stats are going to be evaluated.')
-    if problems == all:
-        print_info(
-            'Failed aligning the contigs for all the assemblies. Only basic stats are going to be evaluated.')
-    return assemblies, aligner_statuses.count(AlignerStatus.OK)
 
 
 def parse_glimmer(labels, reports, tmp_glimmer_dirpath):
@@ -259,10 +207,11 @@ def main():
 
     reports = dict((label, reporting.get(label)) for label in labels)
 
-    icarus_gc_fpath, circos_gc_fpath = basic_stats.do(reports, ref_fpath, assemblies, output_dirpath, join(output_dirpath, 'basic_stats'))
+    icarus_gc_fpath, circos_gc_fpath = basic_stats.do(reports, ref_fpath, reference_chromosomes, assemblies, output_dirpath, join(output_dirpath, 'basic_stats'))
 
-    assemblies, successful_runs = parse_aligner_stats(reports, output_dirpath, assemblies, labels, ref_fpath, genome_size)
-    parse_genome_stats(reports, args.reference_csv, labels, output_dirpath, args.genome_analyzer_dirpath)
+    assemblies, successful_runs = parse_aligner_stats(reports, output_dirpath, assemblies, labels, ref_fpath, reference_chromosomes,
+                                                      genome_size, join(output_dirpath, 'aligned_stats'))
+    parse_genome_stats(reports, args.reference_csv, assemblies, labels, output_dirpath, args.genome_analyzer_dirpath)
     features_containers = [parse_results(c) for c in args.features]
 
     genes_by_labels = parse_glimmer(labels, reports, args.glimmer_dirpath)

@@ -175,7 +175,6 @@ def save_result(result, report, label, ref_fpath, genome_size):
             if qconfig.check_for_fragmented_ref:
                 subreport.add_field(reporting.Fields.MIS_FRAGMENTED, ref_misassemblies.count(Misassembly.FRAGMENTED))
     elif intergenomic_misassemblies_by_asm:
-        label = qutils.label_from_fpath(label)
         ref_name = qutils.name_from_fpath(ref_fpath)
         ref_misassemblies = intergenomic_misassemblies_by_asm[label][ref_name]
         report.add_field(reporting.Fields.MIS_ISTRANSLOCATIONS, ref_misassemblies.count(Misassembly.INTERSPECTRANSLOCATION))

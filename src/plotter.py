@@ -237,7 +237,7 @@ def create_plot(plot_fpath, title, plots, legend_list=None, x_label=None, y_labe
     plt.close('all')
 
 
-def cumulative_plot(reference, labels, lists_of_lengths, plot_fpath, title):
+def cumulative_plot(reference_chromosomes, labels, lists_of_lengths, plot_fpath, title):
     if not can_draw_plots:
         return
 
@@ -256,9 +256,9 @@ def cumulative_plot(reference, labels, lists_of_lengths, plot_fpath, title):
         color, ls = get_color_and_ls(label)
         plots.append(Plot(x_vals, y_vals, color, ls))
 
-    if reference:
+    if reference_chromosomes:
         y_vals = [0]
-        for l in sorted(get_chr_lengths_from_fastafile(reference).values(), reverse=True):
+        for l in sorted(reference_chromosomes.values(), reverse=True):
             y_vals.append(y_vals[-1] + l)
         x_vals = list(range(0, len(y_vals)))
         # extend reference curve to the max X-axis point
@@ -269,20 +269,20 @@ def cumulative_plot(reference, labels, lists_of_lengths, plot_fpath, title):
         plots.append(Plot(x_vals, y_vals, reference_color, reference_ls))
 
     legend_list = labels.copy()
-    if reference:
+    if reference_chromosomes:
         legend_list += ['Reference']
 
     create_plot(plot_fpath, title, plots, legend_list, x_label='Contig index', y_label='Cumulative length',
                      x_limit=[0, max_x])
 
 
-def frc_plot(results_dir, ref_fpath, labels, contigs_aligned_lengths, features_in_contigs_by_file, plot_fpath, title):
+def frc_plot(results_dir, reference_chromosomes, labels, contigs_aligned_lengths, features_in_contigs_by_file, plot_fpath, title):
     if can_draw_plots:
         print_info('  Drawing ' + title + ' FRCurve plot...')
 
     plots = []
     max_y = 0
-    ref_length = sum(get_chr_lengths_from_fastafile(ref_fpath).values())
+    ref_length = sum(reference_chromosomes.values())
     json_vals_x = []  # coordinates for Nx-like plots in HTML-report
     json_vals_y = []
     max_features = int(max(sum(feature_in_contigs) for feature_in_contigs in features_in_contigs_by_file.values())) + 1

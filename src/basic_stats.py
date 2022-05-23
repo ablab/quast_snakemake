@@ -176,7 +176,7 @@ def draw_coverage_histograms(coverage_dict, labels, reports, output_dirpath):
                                    low_threshold=low_threshold, high_threshold=high_threshold)
 
 
-def do(reports, ref_fpath, assemblies, results_dir, output_dirpath):
+def do(reports, ref_fpath, reference_chromosomes, assemblies, results_dir, output_dirpath):
     print_timestamp()
     print_info("Running Basic statistics processor...")
     
@@ -348,7 +348,7 @@ def do(reports, ref_fpath, assemblies, results_dir, output_dirpath):
     if qconfig.draw_plots:
         ########################################################################import plotter
         # Drawing cumulative plot...
-        plotter.cumulative_plot(ref_fpath, labels, lists_of_lengths, join(output_dirpath, 'cumulative_plot'), 'Cumulative length')
+        plotter.cumulative_plot(reference_chromosomes, labels, lists_of_lengths, join(output_dirpath, 'cumulative_plot'), 'Cumulative length')
         if not qconfig.no_gc:
             ########################################################################
             # Drawing GC content plot...

@@ -11,13 +11,15 @@ minimap_dirpath = join(contig_analyzer_dirpath, 'minimap_output')
 icarus_dirpath = join(contig_analyzer_dirpath, 'contigs_reports')
 aux_dirpath = join(contig_analyzer_dirpath, 'aux')
 
+aligned_stats_dirpath = join(config['output_dir'], 'aligned_stats')
+
 genome_analyzer_dirpath = join(config['output_dir'], 'genome_analyzer')
 glimmer_dirpath = join(config['output_dir'], 'gene_prediction')
 tmp_glimmer_dirpath = join(glimmer_dirpath, 'tmp')
 
-for dir in [minimap_dirpath, icarus_dirpath, aux_dirpath, tmp_glimmer_dirpath]:
-    if not isdir(dir):
-        os.makedirs(dir)
+for d in [minimap_dirpath, icarus_dirpath, aux_dirpath, tmp_glimmer_dirpath]:
+    if not isdir(d):
+        os.makedirs(d)
 
 glimmer_output = list()
 if config['gene_prediction']:
