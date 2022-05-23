@@ -119,7 +119,7 @@ def main():
         pd.DataFrame.from_dict({'kind': [container.kind], 'region_list': [g.asdict() for g in container.region_list]},
                                orient='index').to_csv(join(output_dirpath, container.kind + '.csv'))
         pd.DataFrame.from_dict(container.chr_names_dict,
-                               orient='index').to_csv(join(output_dirpath, container.kind + '.chroms.csv'), header=None)
+                               orient='index').to_csv(join(output_dirpath, container.kind + '.chroms.csv'), header=False)
 
 
 

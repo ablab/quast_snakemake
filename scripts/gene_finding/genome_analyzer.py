@@ -14,8 +14,6 @@ from src import qconfig
 from src.common import read_fasta, parse_ref_stats, save_csv_from_dict
 from src.logger import *
 
-ref_lengths_by_contigs = {}
-
 
 class AlignedBlock():
     def __init__(self, seqname=None, start=None, end=None, contig=None, start_in_contig=None, end_in_contig=None):
@@ -51,6 +49,7 @@ def main():
 
     result_fpath = join(output_dirpath, assembly_label + '_info.txt')
     contig_result_fpath = join(output_dirpath, assembly_label + '_contig_info.txt')
+    ref_result_fpath = join(output_dirpath, assembly_label + '_ref_info.txt')
     print_info('  ' + assembly_label)
 
     containers = []
@@ -228,6 +227,7 @@ def main():
     contig_stats['operons_unsorted'] = [operons_in_contigs[idx] for idx in contigs_order]
     save_csv_from_dict(stats, result_fpath)
     save_csv_from_dict(contig_stats, contig_result_fpath)
+    save_csv_from_dict(ref_lengths, ref_result_fpath, add_header=False)
 
 
 if __name__ == '__main__':

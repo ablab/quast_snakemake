@@ -63,5 +63,5 @@ def save_csv(df, filename):
     df.to_csv(filename)
 
 
-def save_csv_from_dict(d, filename):
-    pd.DataFrame.from_dict(dict([(k,pd.Series(v)) for k,v in d.items()]),orient='index').to_csv(filename)
+def save_csv_from_dict(d, filename, add_header=True):
+    pd.DataFrame.from_dict(dict([(k,pd.Series(v)) for k,v in d.items()]),orient='index').to_csv(filename, header=add_header)

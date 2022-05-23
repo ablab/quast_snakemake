@@ -6,6 +6,8 @@
 # All Rights Reserved
 # See file LICENSE for details.
 ############################################################################
+import pandas as pd
+
 from src.common import get_labels_from_paths
 from src.icarus.icarus_builder import *
 from src.icarus.icarus_parser import *
@@ -154,8 +156,14 @@ def js_data_gen(reports, assemblies, contigs_fpaths, labels, chromosomes_length,
 
     chr_sizes = {}
     num_contigs = {}
-    # TODO: FIX
-    aligned_bases = {'gi_49175990_ref_NC_000913.2_':[10000]} #genome_analyzer.get_ref_aligned_lengths()
+
+    aligned_bases = defaultdict(list)
+    for label in labels:
+        ref_result_fpath = join(output_dirpath, 'genome_analyzer', label + '_ref_info.txt')
+        d = pd.read_csv(ref_result_fpath, header=None, index_col=0, squeeze=True).to_dict()
+        for ref_contig, l in d.items():
+            aligned_bases[ref_contig].append(l)
+
     nx_marks = [reporting.Fields.N50, reporting.Fields.Nx, reporting.Fields.NG50, reporting.Fields.NGx]
 
     assemblies_data, assemblies_contig_size_data, assemblies_n50 = get_assemblies_data(reports, labels, output_all_files_dir_path, stdout_pattern, nx_marks)
