@@ -1,13 +1,16 @@
-import sys
+import argparse
+from ast import literal_eval
 from os.path import dirname, exists
 
-from src import basic_stats, reporting
+from scripts.gene_finding.prepare_genome_analyzer import parse_results
+from src import basic_stats
 from src.align_contigs import AlignerStatus
 from src.assembly import Assembly
 from src.common import *
+from src.genes_parser import Gene
 from src.html_saver import html_saver
 from src.icarus import icarus
-from src.logger import print_info, print_timestamp
+from src.logger import print_info, print_timestamp, print_error
 from src.plotter_aux import dict_color_and_ls, save_colors_and_ls
 from src.save_results import *
 
@@ -22,7 +25,7 @@ def parse_genome_stats(reports, reference_csv, labels, output_dirpath, genome_an
     result_fpath = join(genome_analyzer_dirpath, 'genome_info.txt')
     res_file = open(result_fpath, 'a')
 
-    results = defaultdict(int)
+    results = defaultdict()
 
     # for cumulative plots:
     files_features_in_contigs = {}  # "filename" : [ genes in sorted contigs (see below) ]
@@ -57,21 +60,26 @@ def parse_genome_stats(reports, reference_csv, labels, output_dirpath, genome_an
         result_fpath = join(genome_analyzer_dirpath, label + '_info.txt')
         if exists(result_fpath):
             df = pd.read_csv(result_fpath, index_col=0)
-            # TODO: add non-gene features
-            gene_stats = df.loc['gene'].to_list()
-            operon_stats = df.loc['operon'].to_list()
-            results[reporting.Fields.OPERONS + "_full"] = operon_stats[0]
-            results[reporting.Fields.OPERONS + "_partial"] = operon_stats[1]
-            results[reporting.Fields.GENES + "_full"] += gene_stats[0]
-            results[reporting.Fields.GENES + "_partial"] += gene_stats[1]
-            reports[label].add_field(reporting.Fields.REF_OPERONS, operon_stats[2])
-            reports[label].add_field(reporting.Fields.REF_GENES, gene_stats[2])
+            for container_kind in df.index:
+                stats = df.loc[container_kind].to_list()
+                if container_kind == 'operon':
+                    results[reporting.Fields.OPERONS + "_full"] = stats[0]
+                    results[reporting.Fields.OPERONS + "_partial"] = stats[1]
+                    reports[label].add_field(reporting.Fields.REF_OPERONS, stats[2])
+                else:
+                    if reporting.Fields.GENES + "_full" not in results:
+                        results[reporting.Fields.GENES + "_full"] = 0
+                        results[reporting.Fields.GENES + "_partial"] = 0
+                    results[reporting.Fields.GENES + "_full"] += stats[0]
+                    results[reporting.Fields.GENES + "_partial"] += stats[1]
+                    reports[label].add_field(reporting.Fields.REF_GENES, stats[2])
 
     if not results:
         print_info('Genome analyzer failed for all the assemblies.')
         res_file.close()
         return
 
+    ref_genes_num, ref_operons_num = 0, 0
     for i, label in enumerate(labels):
         contig_result_fpath = join(genome_analyzer_dirpath, label + '_contig_info.txt')
         if exists(result_fpath):
@@ -84,25 +92,33 @@ def parse_genome_stats(reports, reference_csv, labels, output_dirpath, genome_an
             full_found_genes.append(sum(files_features_in_contigs[label]))
             full_found_operons.append(sum(files_operons_in_contigs[label]))
 
-            gaps_count = results["gaps_count"]
+            gaps_count = df.loc["gaps_count"].dropna().to_list()[0]
             res_file.write('%-25s| %-10s| %-12s| %-10s|'
                            % (label[:24], reports[label].get_field(reporting.Fields.MAPPEDGENOME),
                               reports[label].get_field(reporting.Fields.DUPLICATION_RATIO), gaps_count))
 
             genome_mapped.append(float(reports[label].get_field(reporting.Fields.MAPPEDGENOME)))
 
-            for (field, full, part) in [(reporting.Fields.GENES, results[reporting.Fields.GENES + "_full"], results[reporting.Fields.GENES + "_partial"]),
-                                        (reporting.Fields.OPERONS, results[reporting.Fields.OPERONS + "_full"], results[reporting.Fields.OPERONS + "_partial"])]:
+            for (field, full, part) in [(reporting.Fields.GENES, results.get(reporting.Fields.GENES + "_full",None), results.get(reporting.Fields.GENES + "_partial",None)),
+                                        (reporting.Fields.OPERONS, results.get(reporting.Fields.OPERONS + "_full",None), results.get(reporting.Fields.OPERONS + "_partial",None))]:
                 if full is None and part is None:
                     res_file.write(' %-10s| %-10s|' % ('-', '-'))
                 else:
                     res_file.write(' %-10s| %-10s|' % (full, part))
                     reports[label].add_field(field, '%s + %s part' % (full, part))
+                    if field == reporting.Fields.OPERONS:
+                        ref_operons_num = results[reporting.Fields.OPERONS + "_full"] + results[reporting.Fields.OPERONS + "_partial"]
+                        if qconfig.html_report:
+                            html_saver.save_features_in_contigs(output_dirpath, labels, 'operons',
+                                                files_operons_in_contigs, ref_operons_num)
+                    if field == reporting.Fields.GENES:
+                        ref_genes_num = results[reporting.Fields.GENES + "_full"] + results[reporting.Fields.GENES + "_partial"]
+                        if qconfig.html_report:
+                            html_saver.save_features_in_contigs(output_dirpath, labels, 'features',
+                                                files_operons_in_contigs, ref_genes_num)
             res_file.write('\n')
     res_file.close()
 
-    ref_genes_num = results[reporting.Fields.GENES + "_full"] + results[reporting.Fields.GENES + "_partial"]
-    ref_operons_num = results[reporting.Fields.OPERONS + "_full"] + results[reporting.Fields.OPERONS + "_partial"]
     if qconfig.html_report:
         if ref_genes_num:
             html_saver.save_features_in_contigs(output_dirpath, labels, 'features',
@@ -138,7 +154,6 @@ def parse_genome_stats(reports, reference_csv, labels, output_dirpath, genome_an
                           'Genome fraction, %', top_value=100)
 
     print_info('Done.')
-    return reports
 
 
 def parse_aligner_stats(reports, output_dirpath, assemblies, labels, ref_fpath, genome_size):
@@ -189,27 +204,68 @@ def parse_aligner_stats(reports, output_dirpath, assemblies, labels, ref_fpath, 
     return assemblies, aligner_statuses.count(AlignerStatus.OK)
 
 
-def main():
-    min_contig, reference_csv, ref_fpath, output_dirpath, \
-    contig_analyzer_dirpath, genome_analyzer_dirpath = sys.argv[1:7]
-    contigs_fpaths = sys.argv[7:]
+def parse_glimmer(labels, reports, tmp_glimmer_dirpath):
+    genes_by_labels = dict()
+    # saving label
+    for label in labels:
+        glimmer_csv = join(tmp_glimmer_dirpath, label + '_glimmer.csv')
+        df = pd.read_csv(glimmer_csv, index_col=0)
+        genes_list = df.loc['genes'].apply(literal_eval).dropna().to_list()
+        genes_list = [Gene(**g) for g in genes_list]
+        genes_by_labels[label] = genes_list
+        full_genes = df.loc['full'].dropna().to_list()
+        partial_genes = df.loc['partial'].dropna().to_list()
+        unique = df.loc['unique'].dropna().to_list()
+        if unique[0] is not None:
+            reports[label].add_field(reporting.Fields.PREDICTED_GENES_UNIQUE, unique[0])
+        if full_genes is not None:
+            genes = ['%s + %s part' % (full_cnt, partial_cnt) for full_cnt, partial_cnt in zip(full_genes, partial_genes)]
+            reports[label].add_field(reporting.Fields.PREDICTED_GENES, genes)
+        if unique is None and full_genes is None:
+            print_error(
+                'Failed running Glimmer for %s. ' % label + ('Run with the --debug option'
+                ' to see the command line.' if not qconfig.debug else ''))
 
+    #if not qconfig.debug:
+    #    shutil.rmtree(tmp_glimmer_dirpath)
+    return genes_by_labels
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--csv', dest='reference_csv')
+    parser.add_argument('-o', dest='output_dirpath')
+    parser.add_argument('-m', dest='min_contig')
+    parser.add_argument('-r', dest='reference')
+    parser.add_argument('--features', nargs='+')
+    parser.add_argument('--contigs_fpaths', nargs='+')
+    parser.add_argument('--contig_analyzer_dirpath')
+    parser.add_argument('--genome_analyzer_dirpath')
+    parser.add_argument('--glimmer_dirpath')
+    args = parser.parse_args()
+
+    output_dirpath = args.output_dirpath
     if isdir(output_dirpath):
         qutils.remove_reports(output_dirpath)
 
-    qconfig.min_contig = int(min_contig)
-    genome_size, reference_chromosomes, ns_by_chromosomes = parse_ref_stats(reference_csv, skip_ns=True)
+    qconfig.min_contig = int(args.min_contig)
+    ref_fpath = args.reference
+    genome_size, reference_chromosomes, ns_by_chromosomes = parse_ref_stats(args.reference_csv, skip_ns=True)
+    contigs_fpaths = args.contigs_fpaths
 
     labels = get_labels_from_paths(contigs_fpaths)
     save_colors_and_ls(labels)
-    assemblies = [Assembly(contig_analyzer_dirpath, contigs_fpath, label) for contigs_fpath, label in zip(contigs_fpaths, labels)]
+    assemblies = [Assembly(args.contig_analyzer_dirpath, contigs_fpath, label) for contigs_fpath, label in zip(contigs_fpaths, labels)]
 
     reports = dict((label, reporting.get(label)) for label in labels)
 
     icarus_gc_fpath, circos_gc_fpath = basic_stats.do(reports, ref_fpath, assemblies, output_dirpath, join(output_dirpath, 'basic_stats'))
 
     assemblies, successful_runs = parse_aligner_stats(reports, output_dirpath, assemblies, labels, ref_fpath, genome_size)
-    reports = parse_genome_stats(reports, reference_csv, labels, output_dirpath, genome_analyzer_dirpath)
+    parse_genome_stats(reports, args.reference_csv, labels, output_dirpath, args.genome_analyzer_dirpath)
+    features_containers = [parse_results(c) for c in args.features]
+
+    genes_by_labels = parse_glimmer(labels, reports, args.glimmer_dirpath)
 
     html_saver.save_colors(output_dirpath, labels, dict_color_and_ls)
     html_saver.save_total_report(reports, output_dirpath, labels, qconfig.min_contig, ref_fpath)
@@ -224,7 +280,7 @@ def main():
         print_timestamp()
         print_info('Creating large visual summaries...')
         print_info('This may take a while: press Ctrl-C to skip this step..')
-        detailed_contigs_reports_dirpath = os.path.join(contig_analyzer_dirpath, qconfig.detailed_contigs_reports_dirname)
+        detailed_contigs_reports_dirpath = os.path.join(args.contig_analyzer_dirpath, qconfig.detailed_contigs_reports_dirname)
         try:
             if detailed_contigs_reports_dirpath:
                 report_for_icarus_fpath_pattern = os.path.join(detailed_contigs_reports_dirpath,
@@ -252,8 +308,8 @@ def main():
 
                 icarus_html_fpath = icarus.do(reports,
                     contigs_fpaths, report_for_icarus_fpath_pattern, output_dirpath, ref_fpath,
-                    stdout_pattern=stdout_pattern, gc_fpath=icarus_gc_fpath, json_output_dir=qconfig.json_output_dirpath)
-                    #features=features_containers, genes_by_labels=genes_by_labels)
+                    stdout_pattern=stdout_pattern, gc_fpath=icarus_gc_fpath, json_output_dir=qconfig.json_output_dirpath,
+                    features=features_containers, genes_by_labels=genes_by_labels)
                     #cov_fpath=cov_fpath, physical_cov_fpath=physical_cov_fpath,
 
             '''if draw_circos_plot:

@@ -154,6 +154,7 @@ def js_data_gen(reports, assemblies, contigs_fpaths, labels, chromosomes_length,
 
     chr_sizes = {}
     num_contigs = {}
+    # TODO: FIX
     aligned_bases = {'gi_49175990_ref_NC_000913.2_':[10000]} #genome_analyzer.get_ref_aligned_lengths()
     nx_marks = [reporting.Fields.N50, reporting.Fields.Nx, reporting.Fields.NG50, reporting.Fields.NGx]
 

@@ -9,6 +9,8 @@ threads: 4
 
 is_prokariote: True
 
+gene_prediction: True
+
 ### ----- TEST FILES ----- ###
 samples:
     A: test_data/contigs_1.fasta
@@ -20,11 +22,10 @@ reference:
 output_dir:
     quast_test_output
 
-operons:
-    test_data/operons.bed
-
 features:
-    test_data/genes.gff
+    - test_data/genes.gff
+    - test_data/operons.bed
 
 features_type:
-    gene
+    - gene
+    - operon

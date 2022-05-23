@@ -15,7 +15,7 @@ from src.logger import *
 
 class FeatureContainer:
     def __init__(self, fpaths, kind=''):
-        self.kind = kind  # 'gene' or 'operon'
+        self.kind = kind
         self.fpaths = fpaths
         self.region_list = []
         self.chr_names_dict = {}
@@ -60,15 +60,17 @@ def chromosomes_names_dict(feature, regions, chr_names):
 def parse_results(containers_file):
     df = pd.read_csv(containers_file, index_col=0)
     container = FeatureContainer(fpaths=None, kind=df.loc['kind'][0])
-    container.chr_names_dict = df.loc['chr_names_dict'].dropna().to_list()
     genes = df.loc['region_list'].apply(literal_eval).dropna().to_list()
     container.region_list = [Gene(**g) for g in genes]
+
+    df = pd.read_csv(containers_file.replace('.csv', '.chroms.csv'), header=None, index_col=0, squeeze=True)
+    container.chr_names_dict = df.to_dict()
     return container
+
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--features', nargs='+')
-    parser.add_argument('--operons', nargs='+')
     parser.add_argument('--features_fpaths', nargs='+')
     parser.add_argument('--labels', nargs='+')
     parser.add_argument('--reference_csv')
@@ -97,11 +99,6 @@ def main():
     if not containers:
         print_notice('No file with genomic features were provided. '
                      'Use the --features option if you want to specify it.\n', indent='  ')
-    if args.operons:
-        containers.append(FeatureContainer(args.operons, 'operon'))
-    else:
-        print_notice('No file with operons were provided. '
-                     'Use the -O option if you want to specify it.', indent='  ')
     for container in containers:
         if not container.fpaths:
             continue
@@ -119,9 +116,11 @@ def main():
                 len(container.region_list)) + '\n')
             container.chr_names_dict = chromosomes_names_dict(container.kind, container.region_list,
                                                               list(reference_chromosomes.keys()))
-        pd.DataFrame.from_dict({'kind': [container.kind], 'region_list': [g.asdict() for g in container.region_list],
-                                'chr_names_dict': container.chr_names_dict},
+        pd.DataFrame.from_dict({'kind': [container.kind], 'region_list': [g.asdict() for g in container.region_list]},
                                orient='index').to_csv(join(output_dirpath, container.kind + '.csv'))
+        pd.DataFrame.from_dict(container.chr_names_dict,
+                               orient='index').to_csv(join(output_dirpath, container.kind + '.chroms.csv'), header=None)
+
 
 
 if __name__ == '__main__':

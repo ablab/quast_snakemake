@@ -31,6 +31,11 @@ def get_chr_lengths_from_fastafile(input_file):
     return chr_lengths
 
 
+def rev_comp(seq):
+    c = dict(zip('ATCGNatcgn', 'TAGCNtagcn'))
+    return ''.join(c.get(nucleotide, '') for nucleotide in reversed(seq))
+
+
 def parse_ref_stats(reference_csv, skip_ns=True):
     df = pd.read_csv(reference_csv, index_col=0)
     genome_size = sum(df['length'])

@@ -160,7 +160,7 @@ class Fields:
 
     # Predicted genes
     PREDICTED_GENES_UNIQUE = '# predicted genes (unique)'
-    PREDICTED_GENES = ('# predicted genes (>= %d bp)', tuple(qconfig.genes_lengths))
+    PREDICTED_GENES = ('# predicted genes (>= %d bp)', tuple([int(x) for x in qconfig.gene_lengths.split(",")]))
     RNA_GENES = '# predicted rRNA genes'
     BUSCO_COMPLETE = 'Complete BUSCO (%)'
     BUSCO_PART = 'Partial BUSCO (%)'

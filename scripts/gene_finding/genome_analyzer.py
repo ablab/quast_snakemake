@@ -5,7 +5,6 @@
 # See file LICENSE for details.
 ############################################################################
 
-from __future__ import with_statement
 import os
 from collections import defaultdict
 from os.path import join, exists
@@ -45,9 +44,8 @@ class AlignedBlock():
 
 
 def main():
-    ## TODO: situation when one or both files are missing
-    output_dirpath, reference_csv, contigs_fpath, assembly_label, coords_dirpath, \
-    gene_container, operon_container = sys.argv[1:]
+    output_dirpath, reference_csv, contigs_fpath, assembly_label, coords_dirpath = sys.argv[1:6]
+    container_fnames = sys.argv[6:]
 
     genome_size, reference_chromosomes, ns_by_chromosomes = parse_ref_stats(reference_csv)
 
@@ -56,9 +54,8 @@ def main():
     print_info('  ' + assembly_label)
 
     containers = []
-    for container_fname in [gene_container, operon_container]:
-        if exists(container_fname):
-            containers.append(parse_results(container_fname))
+    for container_fname in container_fnames:
+        containers.append(parse_results(container_fname))
 
     results = dict()
     ref_lengths = defaultdict(int)
@@ -226,6 +223,7 @@ def main():
                 stats['gene'].append(ref_genes_num)
             else: stats[kind].append(0)
 
+    contig_stats['gaps_count'] = [gaps_count]
     contig_stats['features_unsorted'] = [features_in_contigs[idx] for idx in contigs_order]
     contig_stats['operons_unsorted'] = [operons_in_contigs[idx] for idx in contigs_order]
     save_csv_from_dict(stats, result_fpath)
