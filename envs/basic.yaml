@@ -8,3 +8,4 @@ dependencies:
   - minimap2
   - bottle
   - glimmerhmm
+  - circos

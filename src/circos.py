@@ -1,22 +1,12 @@
 ############################################################################
-# Copyright (c) 2015-2020 Saint Petersburg State University
+# Copyright (c) 2015-2022 Saint Petersburg State University
 # Copyright (c) 2011-2015 Saint Petersburg Academic University
 # All Rights Reserved
 # See file LICENSE for details.
 ############################################################################
 
-from __future__ import with_statement
-
-import os
-import re
-import shutil
-from collections import defaultdict
-from os.path import join, exists, dirname, realpath
-
-from collections import OrderedDict
-
-from src import qconfig
 from src.align_contigs import *
+from src.icarus.icarus_utils import get_assemblies, check_misassembled_blocks, Alignment
 from src.misc import *
 from src.qutils import *
 
@@ -123,7 +113,7 @@ def create_meta_highlights(chr_lengths, output_dir):
     colors = ['orange', 'purple', 'blue']
     with open(highlights_fpath, 'w') as out_f:
         chrom_by_refs = OrderedDict()
-        from quast_libs import contigs_analyzer
+        from src import contigs_analyzer
         for chrom, ref in contigs_analyzer.ref_labels_by_chromosomes.items():
             if not ref in chrom_by_refs:
                 chrom_by_refs[ref] = []
@@ -174,11 +164,11 @@ def parse_aligner_contig_report(report_fpath):
     return aligned_blocks, misassembled_id_to_structure
 
 
-def parse_alignments(contigs_fpaths, contig_report_fpath_pattern):
+def parse_alignments(contigs_fpaths, labels, contig_report_fpath_pattern):
     lists_of_aligned_blocks = []
-    for contigs_fpath in contigs_fpaths:
+    for label in labels:
         if contig_report_fpath_pattern:
-            report_fpath = contig_report_fpath_pattern % qutils.label_from_fpath_for_fname(contigs_fpath)
+            report_fpath = contig_report_fpath_pattern % label
             aligned_blocks, misassembled_id_to_structure = parse_aligner_contig_report(report_fpath)
             if aligned_blocks is None:
                 continue
@@ -188,7 +178,7 @@ def parse_alignments(contigs_fpaths, contig_report_fpath_pattern):
 
     if lists_of_aligned_blocks:
         max_contigs = max([len(aligned_blocks) for aligned_blocks in lists_of_aligned_blocks])
-        return get_assemblies(contigs_fpaths, lists_of_aligned_blocks).assemblies, max_contigs
+        return get_assemblies(contigs_fpaths, labels, lists_of_aligned_blocks).assemblies, max_contigs
     else:
         return None, None
 
@@ -249,7 +239,7 @@ def create_coverage_plot(cov_fpath, window_size, chr_lengths, output_dir):
             else:
                 depth = int(fs[-1])
                 cov_by_chrom[chrom][pos // window_size].append(depth)
-                pos += COVERAGE_FACTOR
+                pos += qconfig.COVERAGE_FACTOR
 
     with open(cov_data_fpath, 'w') as out_f:
         for chrom, depth_list in cov_by_chrom.items():
@@ -260,8 +250,7 @@ def create_coverage_plot(cov_fpath, window_size, chr_lengths, output_dir):
     return cov_data_fpath, max_points
 
 
-def create_mismatches_plot(assembly, window_size, ref_len, root_dir, output_dir):
-    assembly_label = qutils.label_from_fpath_for_fname(assembly.fpath)
+def create_mismatches_plot(assembly, assembly_label, window_size, ref_len, root_dir, output_dir):
     aligner_dirpath = join(root_dir, '..', qconfig.detailed_contigs_reports_dirname)
     coords_basename = join(create_minimap_output_dir(aligner_dirpath), assembly_label)
     _, coords_filtered_fpath, _, _ = get_aux_out_fpaths(coords_basename)
@@ -409,7 +398,7 @@ def create_legend(assemblies, min_gc, max_gc, features_containers, coverage_fpat
     return legend_fpath
 
 
-def create_conf(ref_fpath, contigs_fpaths, contig_report_fpath_pattern, output_dir, gc_fpath, features_containers, cov_fpath, logger):
+def create_conf(ref_fpath, contigs_fpaths, labels, contig_report_fpath_pattern, output_dir, gc_fpath, features_containers, cov_fpath):
     data_dir = join(output_dir, 'data')
     if not exists(data_dir):
         os.makedirs(data_dir)
@@ -426,14 +415,15 @@ def create_conf(ref_fpath, contigs_fpaths, contig_report_fpath_pattern, output_d
     ref_len = sum(chr_lengths.values())
     window_size = set_window_size(ref_len)
 
-    assemblies, contig_points = parse_alignments(contigs_fpaths, contig_report_fpath_pattern)
+    assemblies, contig_points = parse_alignments(contigs_fpaths, labels, contig_report_fpath_pattern)
     alignments_fpaths = [create_alignment_plots(assembly, ref_len, data_dir) for assembly in assemblies]
     if not alignments_fpaths:
         return None
 
     gc_fpath, min_gc, max_gc, gc_points = create_gc_plot(gc_fpath, data_dir)
     feature_fpaths, gene_points = create_genes_plot(features_containers, window_size, ref_len, data_dir)
-    mismatches_fpaths = [create_mismatches_plot(assembly, window_size, ref_len, output_dir, data_dir) for assembly in assemblies]
+    mismatches_fpaths = [create_mismatches_plot(assembly, label, window_size, ref_len, output_dir, data_dir)
+                         for (assembly, label) in zip(assemblies, labels)]
     cov_data_fpath, cov_points = create_coverage_plot(cov_fpath, window_size, chr_lengths, data_dir)
     max_points = max([MAX_POINTS, gc_points, gene_points, cov_points, contig_points])
     labels_fpath, track_labels = create_labels(chr_lengths, assemblies, features_containers, cov_data_fpath, data_dir)
@@ -548,13 +538,13 @@ def create_conf(ref_fpath, contigs_fpaths, contig_report_fpath_pattern, output_d
     return conf_fpath, circos_legend_fpath
 
 
-def do(ref_fpath, contigs_fpaths, contig_report_fpath_pattern, gc_fpath, features_containers, cov_fpath, output_dir, logger):
+def do(ref_fpath, contigs_fpaths, labels, contig_report_fpath_pattern, gc_fpath, features_containers, output_dir, cov_fpath=None):
     if not exists(output_dir):
         os.makedirs(output_dir)
-    conf_fpath, circos_legend_fpath = create_conf(ref_fpath, contigs_fpaths, contig_report_fpath_pattern, output_dir, gc_fpath, features_containers, cov_fpath, logger)
+    conf_fpath, circos_legend_fpath = create_conf(ref_fpath, contigs_fpaths, labels, contig_report_fpath_pattern, output_dir, gc_fpath, features_containers, cov_fpath)
     circos_exec = get_path_to_program('circos')
     if not circos_exec:
-        logger.warning('Circos is not installed!\n'
+        print_warning('Circos is not installed!\n'
                        'If you want to create Circos plots, install Circos as described at http://circos.ca/tutorials/lessons/configuration/distribution_and_installation '
                        'and run the following command:\n\tcircos -conf ' + conf_fpath + '\n'
                        'The plot legend is saved to ' + circos_legend_fpath + '\n')
@@ -568,6 +558,6 @@ def do(ref_fpath, contigs_fpaths, contig_report_fpath_pattern, gc_fpath, feature
     if return_code == 0 and is_non_empty_file(circos_png_fpath):
         return circos_png_fpath, circos_legend_fpath
     else:
-        logger.warning('  Circos diagram was not created. See ' + log_fpath + ' and ' + err_fpath + ' for details')
+        print_warning('  Circos diagram was not created. See ' + log_fpath + ' and ' + err_fpath + ' for details')
         return None, None
 

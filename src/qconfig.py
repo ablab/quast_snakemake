@@ -60,7 +60,9 @@ estimated_reference_size = None
 strict_NA = False
 split_scaffolds = False
 draw_plots = True
-draw_circos = False
+draw_circos = True
+COVERAGE_FACTOR = 10
+
 html_report = True
 save_json = False
 metagenemark = False

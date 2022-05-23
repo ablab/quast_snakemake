@@ -12,7 +12,7 @@ import re
 from os.path import join
 
 from src import qconfig, plotter, reporting
-#from src.circos import set_window_size
+from src.circos import set_window_size
 from src.common import *
 from src.html_saver import html_saver
 from src.logger import *

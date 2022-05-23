@@ -261,13 +261,13 @@ def main():
                     features=features_containers, genes_by_labels=genes_by_labels)
                     #cov_fpath=cov_fpath, physical_cov_fpath=physical_cov_fpath,
 
-            '''if draw_circos_plot:
+            if draw_circos_plot:
                 print_info('  %d of %d: Creating Circos plot...' % (number_of_steps, number_of_steps))
-                from quast_libs import circos
-                circos_png_fpath, circos_legend_fpath = circos.do(ref_fpath, contigs_fpaths,
+                from src import circos
+                circos_png_fpath, circos_legend_fpath = circos.do(ref_fpath, contigs_fpaths, labels,
                                                                   report_for_icarus_fpath_pattern, circos_gc_fpath,
-                                                                  features_containers, cov_fpath,
-                                                                  os.path.join(output_dirpath, 'circos'), logger)'''
+                                                                  features_containers,
+                                                                  os.path.join(output_dirpath, 'circos'))
 
             print_info('Done')
         except KeyboardInterrupt:
