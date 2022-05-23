@@ -1,0 +1,9 @@
+name: quast_base
+
+channels:
+  - bioconda
+  - conda-forge
+
+dependencies:
+  - minimap2
+  - bottle

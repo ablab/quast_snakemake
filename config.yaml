@@ -1,0 +1,30 @@
+### ----- BASE PARAMS ----- ###
+CORRECTED_DIRPATH: "quast_correct_input"
+
+min_contig: 500
+
+### ----- TEST PARAMS ----- ###
+
+threads: 4
+
+is_prokariote: True
+
+### ----- TEST FILES ----- ###
+samples:
+    A: test_data/contigs_1.fasta
+    B: test_data/contigs_2.fasta
+
+reference:
+    test_data/reference.fasta
+
+output_dir:
+    quast_test_output
+
+operons:
+    test_data/operons.bed
+
+features:
+    test_data/genes.gff
+
+features_type:
+    gene

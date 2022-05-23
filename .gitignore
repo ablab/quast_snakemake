@@ -1,0 +1,6 @@
+.snakemake
+.idea
+.DS_Store
+venv
+*.pyc
+quast_test_output
