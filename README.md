@@ -1,4 +1,4 @@
 # QUAST Snakemake pipeline
 
 ### Quick start:
-```snakemake -c4 -p -s quast.smk```
+```snakemake --cores 4 -p -s quast.smk  --use-conda --conda-frontend conda```

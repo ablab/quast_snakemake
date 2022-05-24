@@ -17,13 +17,15 @@ genome_analyzer_dirpath = join(config['output_dir'], 'genome_analyzer')
 glimmer_dirpath = join(config['output_dir'], 'gene_prediction')
 tmp_glimmer_dirpath = join(glimmer_dirpath, 'tmp')
 
-for d in [minimap_dirpath, icarus_dirpath, aux_dirpath, tmp_glimmer_dirpath]:
-    if not isdir(d):
-        os.makedirs(d)
-
 glimmer_output = list()
 if config['gene_prediction']:
     glimmer_output = expand(join(glimmer_dirpath, "{sample}_glimmer.gff"), sample=config['samples'])
+else:
+    tmp_glimmer_dirpath = None
+
+for d in [minimap_dirpath, icarus_dirpath, aux_dirpath, tmp_glimmer_dirpath]:
+    if d and not isdir(d):
+        os.makedirs(d)
 
 rule all:
     input:
@@ -120,6 +122,7 @@ rule genome_analyzer:
     shell:
         "python -m scripts.gene_finding.genome_analyzer {params.output_dir} {input.reference_csv} {input.contig} {params.label} "
         "{params.coords_dir} {input.containers} >{log.out} 2>{log.err}"
+
 
 rule glimmer:
     input:

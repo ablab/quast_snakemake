@@ -157,6 +157,7 @@ def parse_glimmer(labels, reports, tmp_glimmer_dirpath):
     # saving label
     for label in labels:
         glimmer_csv = join(tmp_glimmer_dirpath, label + '_glimmer.csv')
+        if not exists(glimmer_csv): continue
         df = pd.read_csv(glimmer_csv, index_col=0)
         genes_list = df.loc['genes'].apply(literal_eval).dropna().to_list()
         genes_list = [Gene(**g) for g in genes_list]
