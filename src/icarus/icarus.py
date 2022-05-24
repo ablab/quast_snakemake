@@ -160,9 +160,10 @@ def js_data_gen(reports, assemblies, contigs_fpaths, labels, chromosomes_length,
     aligned_bases = defaultdict(list)
     for label in labels:
         ref_result_fpath = join(output_dirpath, 'genome_analyzer', label + '_ref_info.txt')
-        d = pd.read_csv(ref_result_fpath, header=None, index_col=0, squeeze=True).to_dict()
-        for ref_contig, l in d.items():
-            aligned_bases[ref_contig].append(l)
+        if os.path.exists(ref_result_fpath):
+            d = pd.read_csv(ref_result_fpath, header=None, index_col=0, squeeze=True).to_dict()
+            for ref_contig, l in d.items():
+                aligned_bases[ref_contig].append(l)
 
     nx_marks = [reporting.Fields.N50, reporting.Fields.Nx, reporting.Fields.NG50, reporting.Fields.NGx]
 

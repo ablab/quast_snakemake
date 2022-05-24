@@ -11,10 +11,11 @@ class Assembly:
     def __init__(self, output_dir, contigs_fpath, label):
         self.contigs_fpath = contigs_fpath
         self.label = label
-        self.aux_dir = join(output_dir, 'aux')
-        self.status_file = join(self.aux_dir, label + ".status.csv")
-        self.result_file = join(self.aux_dir, label + ".result.csv")
-        self.aligned_stats_file = join(self.aux_dir, label + ".aligned_stats.csv")
+        if output_dir:
+            self.aux_dir = join(output_dir, 'aux')
+            self.status_file = join(self.aux_dir, label + ".status.csv")
+            self.result_file = join(self.aux_dir, label + ".result.csv")
+            self.aligned_stats_file = join(self.aux_dir, label + ".aligned_stats.csv")
 
     def add_results(self, status, results, aligned_lengths, misassemblies_in_contigs, aligned_lengths_by_contigs):
         self.status, self.results, self.aligned_lengths, self.misassemblies_in_contigs, self.aligned_lengths_by_contigs = \

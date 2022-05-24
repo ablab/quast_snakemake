@@ -199,7 +199,6 @@ def main():
 
     qconfig.min_contig = int(args.min_contig)
     ref_fpath = args.reference
-    genome_size, reference_chromosomes, ns_by_chromosomes = parse_ref_stats(args.reference_csv, skip_ns=True)
     contigs_fpaths = args.contigs_fpaths
 
     labels = get_labels_from_paths(contigs_fpaths)
@@ -208,12 +207,16 @@ def main():
 
     reports = dict((label, reporting.get(label)) for label in labels)
 
+    reference_chromosomes = []
+    if ref_fpath:
+        genome_size, reference_chromosomes, ns_by_chromosomes = parse_ref_stats(args.reference_csv, skip_ns=True)
+        assemblies, successful_runs = parse_aligner_stats(reports, output_dirpath, assemblies, labels, ref_fpath, reference_chromosomes,
+                                                      genome_size, join(output_dirpath, 'aligned_stats'))
+        parse_genome_stats(reports, args.reference_csv, assemblies, labels, output_dirpath, args.genome_analyzer_dirpath)
+
     icarus_gc_fpath, circos_gc_fpath = basic_stats.do(reports, ref_fpath, reference_chromosomes, assemblies, output_dirpath, join(output_dirpath, 'basic_stats'))
 
-    assemblies, successful_runs = parse_aligner_stats(reports, output_dirpath, assemblies, labels, ref_fpath, reference_chromosomes,
-                                                      genome_size, join(output_dirpath, 'aligned_stats'))
-    parse_genome_stats(reports, args.reference_csv, assemblies, labels, output_dirpath, args.genome_analyzer_dirpath)
-    features_containers = [parse_results(c) for c in args.features]
+    features_containers = [parse_results(c) for c in args.features] if args.features else []
 
     genes_by_labels = parse_glimmer(labels, reports, args.glimmer_dirpath)
 
@@ -230,9 +233,10 @@ def main():
         print_timestamp()
         print_info('Creating large visual summaries...')
         print_info('This may take a while: press Ctrl-C to skip this step..')
-        detailed_contigs_reports_dirpath = os.path.join(args.contig_analyzer_dirpath, qconfig.detailed_contigs_reports_dirname)
         try:
-            if detailed_contigs_reports_dirpath:
+            if args.contig_analyzer_dirpath:
+                detailed_contigs_reports_dirpath = os.path.join(args.contig_analyzer_dirpath,
+                                                                qconfig.detailed_contigs_reports_dirname)
                 report_for_icarus_fpath_pattern = os.path.join(detailed_contigs_reports_dirpath,
                                                                qconfig.icarus_report_fname_pattern)
                 stdout_pattern = os.path.join(detailed_contigs_reports_dirpath, qconfig.contig_report_fname_pattern)
