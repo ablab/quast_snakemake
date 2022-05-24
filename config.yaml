@@ -22,10 +22,10 @@ reference:
 output_dir:
     quast_test_output
 
-features:
+features_files:
     - test_data/genes.gff
     - test_data/operons.bed
 
-features_type:
+features:
     - gene
     - operon

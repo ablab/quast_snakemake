@@ -23,6 +23,13 @@ if config['gene_prediction']:
 else:
     tmp_glimmer_dirpath = None
 
+if config['features']:
+    features_input = "--features " + expand(join(genome_analyzer_dirpath,"{feature}.csv"),feature=config['features'])
+    containers = expand(join(genome_analyzer_dirpath, "{feature}.csv"), feature=config['features'])
+else:
+    features_input = list()
+    containers = list()
+
 for d in [minimap_dirpath, icarus_dirpath, aux_dirpath, tmp_glimmer_dirpath]:
     if d and not isdir(d):
         os.makedirs(d)
@@ -85,31 +92,49 @@ rule contig_aligner:
         "python -m scripts.alignment.contig_aligner {input.reference} {params.label} {input.contig} {params.output_dir} "
         "{config[is_prokariote]} {input.reference_csv} {config[threads]} >{log.out} 2>{log.err}"
 
-rule prepare_genome_analyzer:
-    input:
-        reference_csv=join(corrected_dirpath, corrected_reference + ".csv"),
-        features_fpaths=config['features'],
-    log:
-        out = join(genome_analyzer_dirpath, 'quast.log'),
-        err = join(genome_analyzer_dirpath, 'quast.err')
-    params:
-        labels=config['samples'],
-        features=config['features_type'],
-        output_dir=genome_analyzer_dirpath,
-    output:
-        info=join(genome_analyzer_dirpath, 'genome_info.txt'),
-        containers=expand(join(genome_analyzer_dirpath, "{feature}.csv"), feature=config['features_type']),
-    shell:
-        "python -m scripts.gene_finding.prepare_genome_analyzer "
-        "--output_dir {params.output_dir} --reference {input.reference_csv} --labels {params.labels} "
-        "--features {params.features} --features_fpaths {input.features_fpaths} "
-        ">{log.out} 2>{log.err}"
+if config['features']:
+    rule prepare_genome_analyzer:
+        input:
+            reference_csv=join(corrected_dirpath, corrected_reference + ".csv"),
+            features_fpaths=config['features_files'],
+        log:
+            out = join(genome_analyzer_dirpath, 'quast.log'),
+            err = join(genome_analyzer_dirpath, 'quast.err')
+        params:
+            labels=config['samples'],
+            features=config['features'],
+            output_dir=genome_analyzer_dirpath,
+        output:
+            info=join(genome_analyzer_dirpath, 'genome_info.txt'),
+            containers=containers,
+        shell:
+            "python -m scripts.gene_finding.prepare_genome_analyzer "
+            "--output_dir {params.output_dir} --reference {input.reference_csv} --labels {params.labels} "
+            "--features {params.features} --features_fpaths {input.features_fpaths} "
+            ">{log.out} 2>{log.err}"
+else:
+    rule prepare_genome_analyzer:
+        input:
+            reference_csv=join(corrected_dirpath, corrected_reference + ".csv"),
+        log:
+            out = join(genome_analyzer_dirpath, 'quast.log'),
+            err = join(genome_analyzer_dirpath, 'quast.err')
+        params:
+            labels=config['samples'],
+            output_dir=genome_analyzer_dirpath,
+        output:
+            info=join(genome_analyzer_dirpath, 'genome_info.txt'),
+        shell:
+            "python -m scripts.gene_finding.prepare_genome_analyzer "
+            "--output_dir {params.output_dir} --reference {input.reference_csv} --labels {params.labels} "
+            ">{log.out} 2>{log.err}"
 
 rule genome_analyzer:
     input:
         contig=join(corrected_dirpath,"{sample}.fasta"),
+        contig_stdout=expand(join(config['output_dir'], "contig_analyzer/contigs_report_{sample}.stdout"), sample=config['samples']),
         reference_csv=join(corrected_dirpath, corrected_reference + ".csv"),
-        containers=expand(join(genome_analyzer_dirpath, "{feature}.csv"), feature=config['features_type']),
+        containers=containers,
     log:
         out = join(genome_analyzer_dirpath, '{sample}.log'),
         err = join(genome_analyzer_dirpath, '{sample}.err')
@@ -122,7 +147,6 @@ rule genome_analyzer:
     shell:
         "python -m scripts.gene_finding.genome_analyzer {params.output_dir} {input.reference_csv} {input.contig} {params.label} "
         "{params.coords_dir} {input.containers} >{log.out} 2>{log.err}"
-
 
 rule glimmer:
     input:
@@ -151,7 +175,7 @@ rule save_stats:
         reference_csv=join(corrected_dirpath, corrected_reference + ".csv"),
         contig_stdout=expand(join(config['output_dir'], "contig_analyzer/contigs_report_{sample}.stdout"), sample=config['samples']),
         genome_info=expand(join(genome_analyzer_dirpath, '{sample}_info.txt'), sample=config['samples']),
-        features=expand(join(genome_analyzer_dirpath, "{feature}.csv"), feature=config['features_type']),
+        features=features_input,
         glimmer_output=glimmer_output
     conda:
         "envs/basic.yaml"
@@ -168,5 +192,5 @@ rule save_stats:
         "python -m scripts.make_reports -m {config[min_contig]} --csv {input.reference_csv} -r {input.reference} "
         "-o {config[output_dir]} --contig_analyzer_dirpath {params.contig_analyzer_dirpath} "
         "--genome_analyzer_dirpath {params.genome_analyzer_dirpath} --glimmer_dirpath {params.tmp_glimmer_dirpath} "
-        "--contigs_fpaths {input.contigs} --features {input.features} >{log.out} 2>{log.err}"
+        "--contigs_fpaths {input.contigs} {input.features} >{log.out} 2>{log.err}"
 
