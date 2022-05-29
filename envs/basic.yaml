@@ -1,11 +1,13 @@
 name: quast_base
 
 channels:
-  - bioconda
   - conda-forge
+  - bioconda
 
 dependencies:
+  - pandas
+  - matplotlib
   - minimap2
   - bottle
-  - glimmerhmm
   - circos
+  - glimmerhmm
