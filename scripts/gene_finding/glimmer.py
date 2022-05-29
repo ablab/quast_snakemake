@@ -10,6 +10,7 @@ import tempfile
 import itertools
 import csv
 import shutil
+from os.path import exists
 
 from src import qutils, qconfig
 from src.common import open_gzipsafe, read_fasta, write_fasta, save_csv_from_dict, rev_comp
@@ -54,7 +55,11 @@ def glimmerHMM(tool_exec_fpath, fasta_fpath, out_fpath, err_path, tmp_dir):
 
     # Note: why arabidopsis? for no particular reason, really.
     trained_dir = tool_exec_fpath.replace('bin/glimmerhmm', os.path.join('share', 'glimmerhmm', 'trained_dir', 'arabidopsis'))
-
+    if not exists(trained_dir):
+        trained_dir = tool_exec_fpath.replace('bin/glimmerhmm',
+                                              os.path.join('GlimmerHMM', 'trained_dir', 'arabidopsis'))
+        if not exists(trained_dir):
+            print_error('Trained dir ' + trained_dir + 'was not found, please check the installation')
     contigs = {}
     gffs = []
     base_dir = tempfile.mkdtemp(dir=tmp_dir)
