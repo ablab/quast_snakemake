@@ -7,9 +7,12 @@ min_contig: 500
 
 threads: 4
 
-is_prokariote: True
+is_prokaryote: True
+is_fungus: False
 
 gene_prediction: True
+
+busco: True
 
 ### ----- TEST FILES ----- ###
 samples:

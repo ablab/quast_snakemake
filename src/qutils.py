@@ -928,25 +928,18 @@ def check_write_permission(path):
 
 
 def get_dir_for_download(dirname, tool, required_files, only_clean=False):
-    tool_dirpath = join(qconfig.LIBS_LOCATION, dirname)
     quast_home_dirpath = join(os.path.expanduser('~'), '.quast')
     tool_home_dirpath = join(quast_home_dirpath, dirname)
-    if all(os.path.exists(join(tool_dirpath, fpath)) for fpath in required_files):
-        return tool_dirpath
     if all(os.path.exists(join(tool_home_dirpath, fpath)) for fpath in required_files):
         return tool_home_dirpath
-    if not is_dir_writable(tool_dirpath):
+    if not is_dir_writable(quast_home_dirpath):
         if not only_clean:
-            print_notice('Permission denied accessing ' + tool_dirpath + '. ' + tool + ' will be downloaded to home directory ' + quast_home_dirpath)
-        if not is_dir_writable(quast_home_dirpath):
-            if not only_clean:
-                print_warning('Permission denied accessing home directory ' + quast_home_dirpath + '. ' + tool + ' cannot be downloaded.')
-            return None
-        tool_dirpath = tool_home_dirpath
+            print_warning('Permission denied accessing home directory ' + quast_home_dirpath + '. ' + tool + ' cannot be downloaded.')
+        return None
 
-    if not isdir(tool_dirpath):
-        os.makedirs(tool_dirpath)
-    return tool_dirpath
+    if not isdir(tool_home_dirpath):
+        os.makedirs(tool_home_dirpath)
+    return tool_home_dirpath
 
 
 def check_reads_fpaths(logger):

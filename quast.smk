@@ -1,6 +1,9 @@
 import os
 from os.path import join, isdir
 
+from scripts.gene_finding.run_busco import get_lineage
+from src.qutils import get_path_to_program, get_dir_for_download
+
 configfile: "config.yaml"
 
 corrected_dirpath = join(config['output_dir'], config['CORRECTED_DIRPATH'])
@@ -10,10 +13,12 @@ contig_analyzer_dirpath = join(config['output_dir'], 'contig_analyzer')
 minimap_dirpath = join(contig_analyzer_dirpath, 'minimap_output')
 icarus_dirpath = join(contig_analyzer_dirpath, 'contigs_reports')
 aux_dirpath = join(contig_analyzer_dirpath, 'aux')
+jobs_threads = max(1, config['threads']//len(config['samples']))
 
 aligned_stats_dirpath = join(config['output_dir'], 'aligned_stats')
 
 genome_analyzer_dirpath = join(config['output_dir'], 'genome_analyzer')
+
 glimmer_dirpath = join(config['output_dir'], 'gene_prediction')
 tmp_glimmer_dirpath = join(glimmer_dirpath, 'tmp')
 
@@ -24,13 +29,21 @@ else:
     tmp_glimmer_dirpath = None
 
 if config['features']:
-    features_input = "--features " + expand(join(genome_analyzer_dirpath,"{feature}.csv"),feature=config['features'])
+    features_input = expand(join(genome_analyzer_dirpath,"{feature}.csv"),feature=config['features'])
     containers = expand(join(genome_analyzer_dirpath, "{feature}.csv"), feature=config['features'])
 else:
     features_input = list()
     containers = list()
 
-for d in [minimap_dirpath, icarus_dirpath, aux_dirpath, tmp_glimmer_dirpath]:
+busco_dirpath = join(config['output_dir'], 'busco')
+lineage = get_lineage(is_prokaryote=config['is_prokaryote'],is_fungus=config['is_fungus'])
+if config['busco'] and get_path_to_program('busco'):
+    busco_output = expand(join(busco_dirpath, "{sample}/short_summary.specific." + lineage + ".{sample}.txt"), sample=config['samples'])
+else:
+    busco_output = list()
+    busco_dirpath = None
+
+for d in [minimap_dirpath, icarus_dirpath, aux_dirpath, tmp_glimmer_dirpath, busco_dirpath]:
     if d and not isdir(d):
         os.makedirs(d)
 
@@ -88,9 +101,8 @@ rule contig_aligner:
     output:
         join(contig_analyzer_dirpath, 'contigs_report_{sample}.stdout')
     shell:
-        #TODO: fix threads
         "python -m scripts.alignment.contig_aligner {input.reference} {params.label} {input.contig} {params.output_dir} "
-        "{config[is_prokariote]} {input.reference_csv} {config[threads]} >{log.out} 2>{log.err}"
+        "{config[is_prokaryote]} {input.reference_csv} {jobs_threads} >{log.out} 2>{log.err}"
 
 if config['features']:
     rule prepare_genome_analyzer:
@@ -168,6 +180,39 @@ rule glimmer:
         "python -m scripts.gene_finding.glimmer {params.output_dir} {input.contig} {params.label} "
         "{params.tmp_dir} >{log.out} 2>{log.err}"
 
+if busco_dirpath:
+    db_dirpath = join(get_dir_for_download('busco', 'busco_db', [lineage]), lineage)
+    rule download_busco:
+        conda:
+            "envs/busco.yaml"
+        log:
+            out=join(busco_dirpath,'busco.log'),
+            err=join(busco_dirpath,'busco.err')
+        params:
+            output_dir=busco_dirpath
+        output:
+            directory(db_dirpath)
+        shell:
+            "python -m scripts.gene_finding.busco_download >{log.out} 2>{log.err}"
+
+    rule run_busco:
+        input:
+            database=db_dirpath,
+            contig=join(corrected_dirpath,"{sample}.fasta"),
+        conda:
+            "envs/busco.yaml"
+        log:
+            out=join(busco_dirpath,'{sample}.log'),
+            err=join(busco_dirpath,'{sample}.err')
+        params:
+            label="{sample}",
+            output_dir=busco_dirpath
+        output:
+            join(busco_dirpath, "{sample}/short_summary.specific." + lineage + ".{sample}.txt")
+        shell:
+            "python -m scripts.gene_finding.run_busco {params.label} {input.contig} {params.output_dir} "
+            "{input.database} {jobs_threads} >{log.out} 2>{log.err}"
+
 rule save_stats:
     input:
         contigs=expand(join(corrected_dirpath, "{sample}.fasta"), sample=config['samples']),
@@ -176,7 +221,8 @@ rule save_stats:
         contig_stdout=expand(join(config['output_dir'], "contig_analyzer/contigs_report_{sample}.stdout"), sample=config['samples']),
         genome_info=expand(join(genome_analyzer_dirpath, '{sample}_info.txt'), sample=config['samples']),
         features=features_input,
-        glimmer_output=glimmer_output
+        glimmer_output=glimmer_output,
+        busco_output=busco_output
     conda:
         "envs/basic.yaml"
     log:
@@ -185,12 +231,15 @@ rule save_stats:
     params:
         contig_analyzer_dirpath=contig_analyzer_dirpath,
         genome_analyzer_dirpath=genome_analyzer_dirpath,
+        features_option='--features' if features_input else '',
+        busco_dirpath=busco_dirpath,
+        lineage=lineage,
         tmp_glimmer_dirpath=tmp_glimmer_dirpath
     output:
         join(config['output_dir'], "report.txt")
     shell:
         "python -m scripts.make_reports -m {config[min_contig]} --csv {input.reference_csv} -r {input.reference} "
         "-o {config[output_dir]} --contig_analyzer_dirpath {params.contig_analyzer_dirpath} "
-        "--genome_analyzer_dirpath {params.genome_analyzer_dirpath} --glimmer_dirpath {params.tmp_glimmer_dirpath} "
-        "--contigs_fpaths {input.contigs} {input.features} >{log.out} 2>{log.err}"
+        "{params.features_option} {input.features} --genome_analyzer_dirpath {params.genome_analyzer_dirpath} --glimmer_dirpath {params.tmp_glimmer_dirpath} "
+        "--busco_dirpath {params.busco_dirpath} --lineage {params.lineage} --contigs_fpaths {input.contigs} >{log.out} 2>{log.err}"
 

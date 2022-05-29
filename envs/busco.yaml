@@ -1,0 +1,8 @@
+name: quast_busco
+
+channels:
+  - conda-forge
+  - bioconda
+
+dependencies:
+  - busco

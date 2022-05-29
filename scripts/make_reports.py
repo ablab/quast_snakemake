@@ -181,6 +181,40 @@ def parse_glimmer(labels, reports, tmp_glimmer_dirpath):
     return genes_by_labels
 
 
+def parse_busco(labels, reports, busco_dirpath, lineage):
+    zero_output_for_all = True
+    for label in labels:
+        summary_fpath = join(busco_dirpath, label, 'short_summary.specific.%s.%s.txt' % (lineage, label))
+
+        if os.path.isfile(summary_fpath):
+            total_buscos, part_buscos, complete_buscos = 0, 0, 0
+            with open(summary_fpath) as f:
+                for line in f:
+                    if 'Complete BUSCOs' in line:
+                        complete_buscos = int(line.split()[0])
+                    elif 'Fragmented' in line:
+                        part_buscos = int(line.split()[0])
+                    elif 'Total' in line:
+                        total_buscos = int(line.split()[0])
+            if total_buscos != 0:
+                reports[label].add_field(reporting.Fields.BUSCO_COMPLETE, ('%.2f' % (float(complete_buscos) * 100.0 / total_buscos)))
+                reports[label].add_field(reporting.Fields.BUSCO_PART, ('%.2f' % (float(part_buscos) * 100.0 / total_buscos)))
+            if complete_buscos + part_buscos > 0:
+                zero_output_for_all = False
+        else:
+            print_error(
+                'Failed running BUSCO for ' + label + '. See the log for detailed information'
+                                                              ' (rerun with --debug to keep all intermediate files).')
+    if zero_output_for_all:
+        print_warning('BUSCO did not fail explicitly but found nothing for all assemblies! '
+                       'Possible reasons and workarounds:\n'
+                       '  1. Provided assemblies are so small that they do not contain even a single partial BUSCO gene. Not likely but may happen -- nothing to worry then.\n'
+                       '  2. Incorrect lineage database was used. To run with fungi DB use --fungus, to run with eukaryota DB use --eukaryote, otherwise BUSCO uses bacteria DB.\n'
+                       '  3. Problem with BUSCO dependencies.\n'                       
+                       '  4. Some other problem with BUSCO. Check the logs (you may need to rerun QUAST with --debug to see all intermediate files).\n'
+                       '     If you cannot solve the problem yourself, post an issue at https://github.com/ablab/quast/issues or write to quast.support@cab.spbu.ru')
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--csv', dest='reference_csv')
@@ -192,6 +226,9 @@ def main():
     parser.add_argument('--contig_analyzer_dirpath')
     parser.add_argument('--genome_analyzer_dirpath')
     parser.add_argument('--glimmer_dirpath')
+    parser.add_argument('--busco_dirpath')
+    parser.add_argument('--lineage')
+
     args = parser.parse_args()
 
     output_dirpath = args.output_dirpath
@@ -220,6 +257,8 @@ def main():
     features_containers = [parse_results(c) for c in args.features] if args.features else []
 
     genes_by_labels = parse_glimmer(labels, reports, args.glimmer_dirpath)
+
+    if exists(args.busco_dirpath): parse_busco(labels, reports, args.busco_dirpath, args.lineage)
 
     html_saver.save_colors(output_dirpath, labels, dict_color_and_ls)
     html_saver.save_total_report(reports, output_dirpath, labels, qconfig.min_contig, ref_fpath)
