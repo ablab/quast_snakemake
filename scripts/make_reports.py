@@ -1,4 +1,5 @@
 import argparse
+import shutil
 from ast import literal_eval
 from os.path import exists
 
@@ -10,7 +11,7 @@ from src.common import *
 from src.genes_parser import Gene
 from src.html_saver import html_saver
 from src.icarus import icarus
-from src.logger import print_info, print_timestamp, print_error
+from src.logger import print_info, print_timestamp, print_error, print_warning
 from src.plotter_aux import dict_color_and_ls, save_colors_and_ls
 from src.save_results import *
 
@@ -175,8 +176,8 @@ def parse_glimmer(labels, reports, tmp_glimmer_dirpath):
                 'Failed running Glimmer for %s. ' % label + ('Run with the --debug option'
                 ' to see the command line.' if not qconfig.debug else ''))
 
-    #if not qconfig.debug:
-    #    shutil.rmtree(tmp_glimmer_dirpath)
+    if not qconfig.debug and exists(tmp_glimmer_dirpath):
+        shutil.rmtree(tmp_glimmer_dirpath)
     return genes_by_labels
 
 

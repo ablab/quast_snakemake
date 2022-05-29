@@ -11,8 +11,8 @@ tmp_glimmer_dirpath = join(glimmer_dirpath, 'tmp')
 glimmer_output = list()
 if config['gene_prediction']:
     glimmer_output = expand(join(glimmer_dirpath, "{sample}_glimmer.gff"), sample=config['samples'])
-    if not isdir(glimmer_output):
-        os.makedirs(glimmer_output)
+    if not isdir(tmp_glimmer_dirpath):
+        os.makedirs(tmp_glimmer_dirpath)
 
 
 rule all:
