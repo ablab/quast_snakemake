@@ -10,4 +10,5 @@ dependencies:
   - minimap2
   - bottle
   - circos
+  - prodigal
   - glimmerhmm

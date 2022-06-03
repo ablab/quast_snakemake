@@ -2,20 +2,23 @@ import os
 from os.path import join, isdir
 
 from scripts.gene_finding.run_busco import get_lineage
-from src.qutils import get_path_to_program
+from src.qutils import get_path_to_program, get_dir_for_download
 
 configfile: "config.yaml"
 
 corrected_dirpath = join(config['output_dir'], config['CORRECTED_DIRPATH'])
 
-glimmer_dirpath = join(config['output_dir'], 'gene_prediction')
-tmp_glimmer_dirpath = join(glimmer_dirpath, 'tmp')
 
-glimmer_output = list()
+gene_pred_dirpath = join(config['output_dir'], 'gene_prediction')
+tmp_gene_pred_dirpath = join(gene_pred_dirpath, 'tmp')
+
+gene_pred_output = list()
 if config['gene_prediction']:
-    glimmer_output = expand(join(glimmer_dirpath, "{sample}_glimmer.gff"), sample=config['samples'])
-    if not isdir(tmp_glimmer_dirpath):
-        os.makedirs(tmp_glimmer_dirpath)
+    gene_pred_output = expand(join(gene_pred_dirpath, "{sample}.gff"), sample=config['samples'])
+    if not isdir(tmp_gene_pred_dirpath):
+        os.makedirs(tmp_gene_pred_dirpath)
+else:
+    tmp_gene_pred_dirpath = None
 
 busco_dirpath = join(config['output_dir'], 'busco')
 lineage = get_lineage(is_prokaryote=config['is_prokaryote'],is_fungus=config['is_fungus'])
@@ -43,23 +46,24 @@ rule correct_contigs:
     shell:
         "python -m scripts.preprocessing.correct_contig {input} {output} {config[min_contig]} >{log.out} 2>{log.err}"
 
-rule glimmer:
+rule gene_prediction:
     input:
         contig=join(corrected_dirpath,"{sample}.fasta"),
     conda:
         "envs/basic.yaml"
     log:
-        out = join(glimmer_dirpath, '{sample}.log'),
-        err = join(glimmer_dirpath, '{sample}.err')
+        out = join(gene_pred_dirpath, '{sample}.log'),
+        err = join(gene_pred_dirpath, '{sample}.err')
     params:
         label="{sample}",
-        tmp_dir=tmp_glimmer_dirpath,
-        output_dir=glimmer_dirpath,
+        tmp_dir=tmp_gene_pred_dirpath,
+        output_dir=gene_pred_dirpath,
+        tool = 'prodigal' if config['is_prokaryote'] else 'glimmerhmm'
     output:
-        join(glimmer_dirpath, '{sample}_glimmer.gff')
+        join(gene_pred_dirpath, '{sample}.gff')
     shell:
-        "python -m scripts.gene_finding.glimmer {params.output_dir} {input.contig} {params.label} "
-        "{params.tmp_dir} >{log.out} 2>{log.err}"
+        "python -m scripts.gene_finding.gene_prediction {params.output_dir} {input.contig} {params.label} "
+        "{params.tmp_dir} {params.tool} >{log.out} 2>{log.err}"
 
 if busco_dirpath:
     db_dirpath = join(get_dir_for_download('busco', 'busco_db', [lineage]), lineage)
@@ -97,7 +101,7 @@ if busco_dirpath:
 rule save_stats:
     input:
         contigs=expand(join(corrected_dirpath, "{sample}.fasta"), sample=config['samples']),
-        glimmer_output=glimmer_output,
+        gene_pred_output=gene_pred_output,
         busco_output=busco_output
     conda:
         "envs/basic.yaml"
@@ -105,13 +109,13 @@ rule save_stats:
         out=join(config['output_dir'], 'quast.log'),
         err=join(config['output_dir'], 'quast.err')
     params:
-        tmp_glimmer_dirpath=tmp_glimmer_dirpath,
         busco_dirpath=busco_dirpath,
         lineage=lineage,
+        tmp_gene_pred_dirpath=tmp_gene_pred_dirpath
     output:
         join(config['output_dir'], "report.txt")
     shell:
         "python -m scripts.make_reports -m {config[min_contig]} "
-        "-o {config[output_dir]} --glimmer_dirpath {params.tmp_glimmer_dirpath} "
+        "-o {config[output_dir]} --gene_pred_dirpath {params.tmp_gene_pred_dirpath} "
         "--busco_dirpath {params.busco_dirpath} --lineage {params.lineage} --contigs_fpaths {input.contigs} >{log.out} 2>{log.err}"
 

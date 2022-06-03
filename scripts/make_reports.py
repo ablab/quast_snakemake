@@ -153,13 +153,13 @@ def parse_genome_stats(reports, reference_csv, assemblies, labels, output_dirpat
     print_info('Done.')
 
 
-def parse_glimmer(labels, reports, tmp_glimmer_dirpath):
+def parse_gene_pred(labels, reports, gene_pred_dirpath):
     genes_by_labels = dict()
     # saving label
     for label in labels:
-        glimmer_csv = join(tmp_glimmer_dirpath, label + '_glimmer.csv')
-        if not exists(glimmer_csv): continue
-        df = pd.read_csv(glimmer_csv, index_col=0)
+        gene_pred_csv = join(gene_pred_dirpath, label + '.csv')
+        if not exists(gene_pred_csv): continue
+        df = pd.read_csv(gene_pred_csv, index_col=0)
         genes_list = df.loc['genes'].apply(literal_eval).dropna().to_list()
         genes_list = [Gene(**g) for g in genes_list]
         genes_by_labels[label] = genes_list
@@ -173,11 +173,11 @@ def parse_glimmer(labels, reports, tmp_glimmer_dirpath):
             reports[label].add_field(reporting.Fields.PREDICTED_GENES, genes)
         if unique is None and full_genes is None:
             print_error(
-                'Failed running Glimmer for %s. ' % label + ('Run with the --debug option'
+                'Failed running gene prediction for %s. ' % label + ('Run with the --debug option'
                 ' to see the command line.' if not qconfig.debug else ''))
 
-    if not qconfig.debug and exists(tmp_glimmer_dirpath):
-        shutil.rmtree(tmp_glimmer_dirpath)
+    if not qconfig.debug and exists(gene_pred_dirpath):
+        shutil.rmtree(gene_pred_dirpath)
     return genes_by_labels
 
 
@@ -225,7 +225,7 @@ def main():
     parser.add_argument('--contigs_fpaths', nargs='+')
     parser.add_argument('--contig_analyzer_dirpath')
     parser.add_argument('--genome_analyzer_dirpath')
-    parser.add_argument('--glimmer_dirpath')
+    parser.add_argument('--gene_pred_dirpath')
     parser.add_argument('--busco_dirpath')
     parser.add_argument('--lineage')
 
@@ -256,7 +256,7 @@ def main():
 
     features_containers = [parse_results(c) for c in args.features] if args.features else []
 
-    genes_by_labels = parse_glimmer(labels, reports, args.glimmer_dirpath)
+    genes_by_labels = parse_gene_pred(labels, reports, args.gene_pred_dirpath)
 
     if exists(args.busco_dirpath): parse_busco(labels, reports, args.busco_dirpath, args.lineage)
 

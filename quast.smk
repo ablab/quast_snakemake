@@ -19,14 +19,14 @@ aligned_stats_dirpath = join(config['output_dir'], 'aligned_stats')
 
 genome_analyzer_dirpath = join(config['output_dir'], 'genome_analyzer')
 
-glimmer_dirpath = join(config['output_dir'], 'gene_prediction')
-tmp_glimmer_dirpath = join(glimmer_dirpath, 'tmp')
+gene_pred_dirpath = join(config['output_dir'], 'gene_prediction')
+tmp_gene_pred_dirpath = join(gene_pred_dirpath, 'tmp')
 
-glimmer_output = list()
+gene_pred_output = list()
 if config['gene_prediction']:
-    glimmer_output = expand(join(glimmer_dirpath, "{sample}_glimmer.gff"), sample=config['samples'])
+    gene_pred_output = expand(join(gene_pred_dirpath, "{sample}.gff"), sample=config['samples'])
 else:
-    tmp_glimmer_dirpath = None
+    tmp_gene_pred_dirpath = None
 
 if config['features']:
     features_input = expand(join(genome_analyzer_dirpath,"{feature}.csv"),feature=config['features'])
@@ -43,7 +43,7 @@ else:
     busco_output = list()
     busco_dirpath = None
 
-for d in [minimap_dirpath, icarus_dirpath, aux_dirpath, tmp_glimmer_dirpath, busco_dirpath]:
+for d in [minimap_dirpath, icarus_dirpath, aux_dirpath, tmp_gene_pred_dirpath, busco_dirpath]:
     if d and not isdir(d):
         os.makedirs(d)
 
@@ -160,25 +160,25 @@ rule genome_analyzer:
         "python -m scripts.gene_finding.genome_analyzer {params.output_dir} {input.reference_csv} {input.contig} {params.label} "
         "{params.coords_dir} {input.containers} >{log.out} 2>{log.err}"
 
-rule glimmer:
+rule gene_prediction:
     input:
         contig=join(corrected_dirpath,"{sample}.fasta"),
         reference_csv=join(corrected_dirpath, corrected_reference + ".csv"),
     conda:
         "envs/basic.yaml"
     log:
-        out = join(glimmer_dirpath, '{sample}.log'),
-        err = join(glimmer_dirpath, '{sample}.err')
+        out = join(gene_pred_dirpath, '{sample}.log'),
+        err = join(gene_pred_dirpath, '{sample}.err')
     params:
         label="{sample}",
-        tmp_dir=tmp_glimmer_dirpath,
-        output_dir=glimmer_dirpath,
-        coords_dir=minimap_dirpath
+        tmp_dir=tmp_gene_pred_dirpath,
+        output_dir=gene_pred_dirpath,
+        tool = 'prodigal' if config['is_prokaryote'] else 'glimmerhmm'
     output:
-        join(glimmer_dirpath, '{sample}_glimmer.gff')
+        join(gene_pred_dirpath, '{sample}.gff')
     shell:
-        "python -m scripts.gene_finding.glimmer {params.output_dir} {input.contig} {params.label} "
-        "{params.tmp_dir} >{log.out} 2>{log.err}"
+        "python -m scripts.gene_finding.gene_prediction {params.output_dir} {input.contig} {params.label} "
+        "{params.tmp_dir} {params.tool} >{log.out} 2>{log.err}"
 
 if busco_dirpath:
     db_dirpath = join(get_dir_for_download('busco', 'busco_db', [lineage]), lineage)
@@ -221,7 +221,7 @@ rule save_stats:
         contig_stdout=expand(join(config['output_dir'], "contig_analyzer/contigs_report_{sample}.stdout"), sample=config['samples']),
         genome_info=expand(join(genome_analyzer_dirpath, '{sample}_info.txt'), sample=config['samples']),
         features=features_input,
-        glimmer_output=glimmer_output,
+        gene_pred_output=gene_pred_output,
         busco_output=busco_output
     conda:
         "envs/basic.yaml"
@@ -234,12 +234,13 @@ rule save_stats:
         features_option='--features' if features_input else '',
         busco_dirpath=busco_dirpath,
         lineage=lineage,
-        tmp_glimmer_dirpath=tmp_glimmer_dirpath
+        tmp_gene_pred_dirpath=tmp_gene_pred_dirpath
     output:
         join(config['output_dir'], "report.txt")
     shell:
         "python -m scripts.make_reports -m {config[min_contig]} --csv {input.reference_csv} -r {input.reference} "
         "-o {config[output_dir]} --contig_analyzer_dirpath {params.contig_analyzer_dirpath} "
-        "{params.features_option} {input.features} --genome_analyzer_dirpath {params.genome_analyzer_dirpath} --glimmer_dirpath {params.tmp_glimmer_dirpath} "
+        "{params.features_option} {input.features} --genome_analyzer_dirpath {params.genome_analyzer_dirpath} "
+        "--gene_pred_dirpath {params.tmp_gene_pred_dirpath} "
         "--busco_dirpath {params.busco_dirpath} --lineage {params.lineage} --contigs_fpaths {input.contigs} >{log.out} 2>{log.err}"
 
