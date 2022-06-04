@@ -41,9 +41,16 @@ if config['busco'] and get_path_to_program('busco'):
     busco_output = expand(join(busco_dirpath, "{sample}/short_summary.specific." + lineage + ".{sample}.txt"), sample=config['samples'])
 else:
     busco_output = list()
-    busco_dirpath = None
 
-for d in [minimap_dirpath, icarus_dirpath, aux_dirpath, tmp_gene_pred_dirpath, busco_dirpath]:
+kmer_analyzer_dirpath = join(config['output_dir'], 'kmer_analysis')
+tmp_kmer_analyzer_dirpath = join(kmer_analyzer_dirpath, 'tmp')
+if config['kmer_analysis'] and get_path_to_program('kmc'):
+    kmer_output = expand(join(kmer_analyzer_dirpath, "{sample}.stat"), sample=config['samples'])
+else:
+    kmer_output = list()
+    tmp_kmer_analyzer_dirpath = None
+
+for d in [minimap_dirpath, icarus_dirpath, aux_dirpath, tmp_gene_pred_dirpath, tmp_kmer_analyzer_dirpath]:
     if d and not isdir(d):
         os.makedirs(d)
 
@@ -180,38 +187,77 @@ rule gene_prediction:
         "python -m scripts.gene_finding.gene_prediction {params.output_dir} {input.contig} {params.label} "
         "{params.tmp_dir} {params.tool} >{log.out} 2>{log.err}"
 
-if busco_dirpath:
-    db_dirpath = join(get_dir_for_download('busco', 'busco_db', [lineage]), lineage)
-    rule download_busco:
-        conda:
-            "envs/busco.yaml"
-        log:
-            out=join(busco_dirpath,'busco.log'),
-            err=join(busco_dirpath,'busco.err')
-        params:
-            output_dir=busco_dirpath
-        output:
-            directory(db_dirpath)
-        shell:
-            "python -m scripts.gene_finding.busco_download >{log.out} 2>{log.err}"
+db_dirpath = join(get_dir_for_download('busco', 'busco_db', [lineage]), lineage)
+rule download_busco:
+    conda:
+        "envs/busco.yaml"
+    log:
+        out=join(busco_dirpath,'busco.log'),
+        err=join(busco_dirpath,'busco.err')
+    params:
+        output_dir=busco_dirpath
+    output:
+        directory(db_dirpath)
+    shell:
+        "python -m scripts.gene_finding.busco_download >{log.out} 2>{log.err}"
 
-    rule run_busco:
-        input:
-            database=db_dirpath,
-            contig=join(corrected_dirpath,"{sample}.fasta"),
-        conda:
-            "envs/busco.yaml"
-        log:
-            out=join(busco_dirpath,'{sample}.log'),
-            err=join(busco_dirpath,'{sample}.err')
-        params:
-            label="{sample}",
-            output_dir=busco_dirpath
-        output:
-            join(busco_dirpath, "{sample}/short_summary.specific." + lineage + ".{sample}.txt")
-        shell:
-            "python -m scripts.gene_finding.run_busco {params.label} {input.contig} {params.output_dir} "
-            "{input.database} {jobs_threads} >{log.out} 2>{log.err}"
+rule run_busco:
+    input:
+        database=db_dirpath,
+        contig=join(corrected_dirpath,"{sample}.fasta"),
+    conda:
+        "envs/busco.yaml"
+    log:
+        out=join(busco_dirpath,'{sample}.log'),
+        err=join(busco_dirpath,'{sample}.err')
+    params:
+        label="{sample}",
+        output_dir=busco_dirpath
+    output:
+        join(busco_dirpath, "{sample}/short_summary.specific." + lineage + ".{sample}.txt")
+    shell:
+        "python -m scripts.gene_finding.run_busco {params.label} {input.contig} {params.output_dir} "
+        "{input.database} {jobs_threads} >{log.out} 2>{log.err}"
+
+rule kmer_analysis_ref:
+    input:
+        reference=join(corrected_dirpath, corrected_reference),
+    conda:
+        "envs/basic.yaml"
+    log:
+        out=join(kmer_analyzer_dirpath,'kmc.log'),
+        err=join(kmer_analyzer_dirpath,'kmc.err')
+    params:
+        output_dir=kmer_analyzer_dirpath,
+        tmp_output_dir=tmp_kmer_analyzer_dirpath
+    output:
+        join(tmp_kmer_analyzer_dirpath,'kmc.downsampled.txt')
+    shell:
+        "python -m scripts.large_assembly_analysis.run_kmc_ref {params.output_dir} "
+        "{params.tmp_output_dir} {input.reference} {config[threads]} >{log.out} 2>{log.err}"
+
+rule kmer_analysis:
+    input:
+        contig=join(corrected_dirpath,"{sample}.fasta"),
+        reference_csv=join(corrected_dirpath,corrected_reference + ".csv"),
+        downsampled_kmers_fpath=join(tmp_kmer_analyzer_dirpath,'kmc.downsampled.txt')
+    conda:
+        "envs/basic.yaml"
+    log:
+        out=join(kmer_analyzer_dirpath,'{sample}.log'),
+        err=join(kmer_analyzer_dirpath,'{sample}.err')
+    params:
+        label="{sample}",
+        ref_kmc_out_path=join(tmp_kmer_analyzer_dirpath,'reference.kmc'),
+        output_dir=kmer_analyzer_dirpath,
+        tmp_output_dir=tmp_kmer_analyzer_dirpath
+    output:
+        join(kmer_analyzer_dirpath,'{sample}.stat')
+    shell:
+        "python -m scripts.large_assembly_analysis.run_kmc {params.output_dir} {params.tmp_output_dir} "
+        "{params.ref_kmc_out_path} {input.reference_csv} {config[is_prokaryote]} {input.downsampled_kmers_fpath} "
+        "{input.contig} {params.label} "
+        "{jobs_threads} >{log.out} 2>{log.err}"
 
 rule save_stats:
     input:
@@ -222,7 +268,8 @@ rule save_stats:
         genome_info=expand(join(genome_analyzer_dirpath, '{sample}_info.txt'), sample=config['samples']),
         features=features_input,
         gene_pred_output=gene_pred_output,
-        busco_output=busco_output
+        busco_output=busco_output,
+        kmer_output=kmer_output
     conda:
         "envs/basic.yaml"
     log:
@@ -232,9 +279,10 @@ rule save_stats:
         contig_analyzer_dirpath=contig_analyzer_dirpath,
         genome_analyzer_dirpath=genome_analyzer_dirpath,
         features_option='--features' if features_input else '',
-        busco_dirpath=busco_dirpath,
+        tmp_gene_pred_dirpath=tmp_gene_pred_dirpath if gene_pred_output else None,
+        kmer_analyzer_dirpath=kmer_analyzer_dirpath if kmer_output else None,
+        busco_dirpath=busco_dirpath if busco_output else None,
         lineage=lineage,
-        tmp_gene_pred_dirpath=tmp_gene_pred_dirpath
     output:
         join(config['output_dir'], "report.txt")
     shell:
@@ -242,5 +290,6 @@ rule save_stats:
         "-o {config[output_dir]} --contig_analyzer_dirpath {params.contig_analyzer_dirpath} "
         "{params.features_option} {input.features} --genome_analyzer_dirpath {params.genome_analyzer_dirpath} "
         "--gene_pred_dirpath {params.tmp_gene_pred_dirpath} "
+        "--kmer_analyzer_dirpath {params.kmer_analyzer_dirpath} "
         "--busco_dirpath {params.busco_dirpath} --lineage {params.lineage} --contigs_fpaths {input.contigs} >{log.out} 2>{log.err}"
 

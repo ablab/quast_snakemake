@@ -11,4 +11,5 @@ dependencies:
   - bottle
   - circos
   - prodigal
+  - kmc
   - glimmerhmm

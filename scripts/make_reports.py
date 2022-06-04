@@ -11,6 +11,7 @@ from src.common import *
 from src.genes_parser import Gene
 from src.html_saver import html_saver
 from src.icarus import icarus
+from src.kmers_analyzer import parse_kmer_results
 from src.logger import print_info, print_timestamp, print_error, print_warning
 from src.plotter_aux import dict_color_and_ls, save_colors_and_ls
 from src.save_results import *
@@ -225,6 +226,7 @@ def main():
     parser.add_argument('--contigs_fpaths', nargs='+')
     parser.add_argument('--contig_analyzer_dirpath')
     parser.add_argument('--genome_analyzer_dirpath')
+    parser.add_argument('--kmer_analyzer_dirpath')
     parser.add_argument('--gene_pred_dirpath')
     parser.add_argument('--busco_dirpath')
     parser.add_argument('--lineage')
@@ -251,6 +253,8 @@ def main():
         assemblies, successful_runs = parse_aligner_stats(reports, output_dirpath, assemblies, labels, ref_fpath, reference_chromosomes,
                                                       genome_size, join(output_dirpath, 'aligned_stats'))
         parse_genome_stats(reports, args.reference_csv, assemblies, labels, output_dirpath, args.genome_analyzer_dirpath)
+        if isdir(args.kmer_analyzer_dirpath):
+            parse_kmer_results(reports, args.kmer_analyzer_dirpath, labels)
 
     icarus_gc_fpath, circos_gc_fpath = basic_stats.do(reports, ref_fpath, reference_chromosomes, assemblies, output_dirpath, join(output_dirpath, 'basic_stats'))
 

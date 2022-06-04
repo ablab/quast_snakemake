@@ -10,9 +10,13 @@ threads: 4
 is_prokaryote: True
 is_fungus: False
 
+### ----- MODULES ----- ###
+
 gene_prediction: True
 
 busco: True
+
+kmer_analysis: True
 
 ### ----- TEST FILES ----- ###
 samples:
