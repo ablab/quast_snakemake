@@ -42,7 +42,7 @@ if config['busco'] and get_path_to_program('busco'):
 else:
     busco_output = list()
 
-kmer_analyzer_dirpath = join(config['output_dir'], 'kmer_analysis')
+kmer_analyzer_dirpath = join(config['output_dir'], 'kmer_stats')
 tmp_kmer_analyzer_dirpath = join(kmer_analyzer_dirpath, 'tmp')
 if config['kmer_analysis'] and get_path_to_program('kmc'):
     kmer_output = expand(join(kmer_analyzer_dirpath, "{sample}.stat"), sample=config['samples'])

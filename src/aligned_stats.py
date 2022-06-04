@@ -18,7 +18,8 @@ from src.logger import print_info, print_timestamp
 from src.save_results import save_result_for_unaligned, save_result
 
 
-def parse_aligner_stats(reports, output_dirpath, assemblies, labels, ref_fpath, reference_chromosomes, genome_size, aligned_stats_dirpath):
+def parse_aligner_stats(reports, output_dirpath, assemblies, labels, ref_fpath, reference_chromosomes, genome_size,
+                        contig_analyzer_dirpath, aligned_stats_dirpath):
     if not isdir(aligned_stats_dirpath):
         os.makedirs(aligned_stats_dirpath)
 
@@ -37,17 +38,17 @@ def parse_aligner_stats(reports, output_dirpath, assemblies, labels, ref_fpath, 
             save_result_for_unaligned(assemblies[index].results, reports[label])
 
     if AlignerStatus.OK in aligner_statuses:
-        reporting.save_misassemblies(reports, output_dirpath)
-        reporting.save_unaligned(reports, output_dirpath)
+        reporting.save_misassemblies(reports, contig_analyzer_dirpath)
+        reporting.save_unaligned(reports, contig_analyzer_dirpath)
         if qconfig.draw_plots:
-            plotter.draw_misassemblies_plot(saved_reports, join(output_dirpath, 'misassemblies_plot'), 'Misassemblies')
+            plotter.draw_misassemblies_plot(saved_reports, join(contig_analyzer_dirpath, 'misassemblies_plot'), 'Misassemblies')
         if qconfig.draw_plots or qconfig.html_report:
             misassemblies_in_contigs = dict(
                 (labels[i], assemblies[i].misassemblies_in_contigs) for i in range(len(labels)))
             plotter.frc_plot(output_dirpath, reference_chromosomes, labels,
                              [asm.aligned_lengths_by_contigs for asm in assemblies],
                              misassemblies_in_contigs,
-                             join(aligned_stats_dirpath, 'misassemblies_frcurve_plot'), 'misassemblies')
+                             join(contig_analyzer_dirpath, 'misassemblies_frcurve_plot'), 'misassemblies')
 
     oks = aligner_statuses.count(AlignerStatus.OK)
     not_aligned = aligner_statuses.count(AlignerStatus.NOT_ALIGNED)

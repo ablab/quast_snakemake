@@ -251,7 +251,7 @@ def main():
     if ref_fpath:
         genome_size, reference_chromosomes, ns_by_chromosomes = parse_ref_stats(args.reference_csv, skip_ns=True)
         assemblies, successful_runs = parse_aligner_stats(reports, output_dirpath, assemblies, labels, ref_fpath, reference_chromosomes,
-                                                      genome_size, join(output_dirpath, 'aligned_stats'))
+                                                      genome_size, args.contig_analyzer_dirpath, join(output_dirpath, 'aligned_stats'))
         parse_genome_stats(reports, args.reference_csv, assemblies, labels, output_dirpath, args.genome_analyzer_dirpath)
         if isdir(args.kmer_analyzer_dirpath):
             parse_kmer_results(reports, args.kmer_analyzer_dirpath, labels)
