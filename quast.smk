@@ -29,11 +29,10 @@ else:
     tmp_gene_pred_dirpath = None
 
 if config['features']:
-    features_input = expand(join(genome_analyzer_dirpath,"{feature}.csv"),feature=config['features'])
-    containers = expand(join(genome_analyzer_dirpath, "{feature}.csv"), feature=config['features'])
+    features_input = expand(join(genome_analyzer_dirpath, "{feature}.csv"),feature=config['features'])
 else:
     features_input = list()
-    containers = list()
+    config['features_files'] = list()
 
 busco_dirpath = join(config['output_dir'], 'busco')
 lineage = get_lineage(is_prokaryote=config['is_prokaryote'],is_fungus=config['is_fungus'])
@@ -46,11 +45,11 @@ kmer_analyzer_dirpath = join(config['output_dir'], 'kmer_stats')
 tmp_kmer_analyzer_dirpath = join(kmer_analyzer_dirpath, 'tmp')
 if config['kmer_analysis'] and get_path_to_program('kmc'):
     kmer_output = expand(join(kmer_analyzer_dirpath, "{sample}.stat"), sample=config['samples'])
+    os.makedirs(tmp_kmer_analyzer_dirpath)
 else:
     kmer_output = list()
-    tmp_kmer_analyzer_dirpath = None
 
-for d in [minimap_dirpath, icarus_dirpath, aux_dirpath, tmp_gene_pred_dirpath, tmp_kmer_analyzer_dirpath]:
+for d in [minimap_dirpath, icarus_dirpath, aux_dirpath, tmp_gene_pred_dirpath]:
     if d and not isdir(d):
         os.makedirs(d)
 
@@ -85,16 +84,16 @@ rule correct_contigs:
     input:
         get_input_fastas
     log:
-        out=join(corrected_dirpath,"{sample}.log"),
-        err=join(corrected_dirpath,"{sample}.err")
+        out=join(corrected_dirpath, "{sample}.log"),
+        err=join(corrected_dirpath, "{sample}.err")
     output:
-        join(corrected_dirpath,"{sample}.fasta")
+        join(corrected_dirpath, "{sample}.fasta")
     shell:
         "python -m scripts.preprocessing.correct_contig {input} {output} {config[min_contig]} >{log.out} 2>{log.err}"
 
 rule contig_aligner:
     input:
-        contig=join(corrected_dirpath,"{sample}.fasta"),
+        contig=join(corrected_dirpath, "{sample}.fasta"),
         reference=join(corrected_dirpath, corrected_reference),
         reference_csv=join(corrected_dirpath, corrected_reference + ".csv")
     conda:
@@ -111,49 +110,33 @@ rule contig_aligner:
         "python -m scripts.alignment.contig_aligner {input.reference} {params.label} {input.contig} {params.output_dir} "
         "{config[is_prokaryote]} {input.reference_csv} {jobs_threads} >{log.out} 2>{log.err}"
 
-if config['features']:
-    rule prepare_genome_analyzer:
-        input:
-            reference_csv=join(corrected_dirpath, corrected_reference + ".csv"),
-            features_fpaths=config['features_files'],
-        log:
-            out = join(genome_analyzer_dirpath, 'quast.log'),
-            err = join(genome_analyzer_dirpath, 'quast.err')
-        params:
-            labels=config['samples'],
-            features=config['features'],
-            output_dir=genome_analyzer_dirpath,
-        output:
-            info=join(genome_analyzer_dirpath, 'genome_info.txt'),
-            containers=containers,
-        shell:
-            "python -m scripts.gene_finding.prepare_genome_analyzer "
-            "--output_dir {params.output_dir} --reference {input.reference_csv} --labels {params.labels} "
-            "--features {params.features} --features_fpaths {input.features_fpaths} "
-            ">{log.out} 2>{log.err}"
-else:
-    rule prepare_genome_analyzer:
-        input:
-            reference_csv=join(corrected_dirpath, corrected_reference + ".csv"),
-        log:
-            out = join(genome_analyzer_dirpath, 'quast.log'),
-            err = join(genome_analyzer_dirpath, 'quast.err')
-        params:
-            labels=config['samples'],
-            output_dir=genome_analyzer_dirpath,
-        output:
-            info=join(genome_analyzer_dirpath, 'genome_info.txt'),
-        shell:
-            "python -m scripts.gene_finding.prepare_genome_analyzer "
-            "--output_dir {params.output_dir} --reference {input.reference_csv} --labels {params.labels} "
-            ">{log.out} 2>{log.err}"
+rule prepare_genome_analyzer:
+    input:
+        reference_csv=join(corrected_dirpath, corrected_reference + ".csv"),
+        features_fpaths=config['features_files'],
+    log:
+        out = join(genome_analyzer_dirpath, 'quast.log'),
+        err = join(genome_analyzer_dirpath, 'quast.err')
+    params:
+        labels=config['samples'],
+        output_dir=genome_analyzer_dirpath,
+        features=config['features'],
+        features_option='--features' if features_input else '',
+        features_paths_option='--features_fpaths' if features_input else '',
+    output:
+        info=join(genome_analyzer_dirpath, 'genome_info.txt'),
+    shell:
+        "python -m scripts.gene_finding.prepare_genome_analyzer "
+        "--output_dir {params.output_dir} --reference {input.reference_csv} --labels {params.labels} "
+        "{params.features_option} {params.features} {params.features_paths_option} {input.features_fpaths}"
+        ">{log.out} 2>{log.err}"
 
 rule genome_analyzer:
     input:
-        contig=join(corrected_dirpath,"{sample}.fasta"),
+        contig=join(corrected_dirpath, "{sample}.fasta"),
         contig_stdout=expand(join(config['output_dir'], "contig_analyzer/contigs_report_{sample}.stdout"), sample=config['samples']),
         reference_csv=join(corrected_dirpath, corrected_reference + ".csv"),
-        containers=containers,
+        features_input=features_input,
     log:
         out = join(genome_analyzer_dirpath, '{sample}.log'),
         err = join(genome_analyzer_dirpath, '{sample}.err')
@@ -165,11 +148,11 @@ rule genome_analyzer:
         join(genome_analyzer_dirpath, '{sample}_info.txt')
     shell:
         "python -m scripts.gene_finding.genome_analyzer {params.output_dir} {input.reference_csv} {input.contig} {params.label} "
-        "{params.coords_dir} {input.containers} >{log.out} 2>{log.err}"
+        "{params.coords_dir} {input.features_input} >{log.out} 2>{log.err}"
 
 rule gene_prediction:
     input:
-        contig=join(corrected_dirpath,"{sample}.fasta"),
+        contig=join(corrected_dirpath, "{sample}.fasta"),
         reference_csv=join(corrected_dirpath, corrected_reference + ".csv"),
     conda:
         "envs/basic.yaml"
@@ -192,8 +175,8 @@ rule download_busco:
     conda:
         "envs/busco.yaml"
     log:
-        out=join(busco_dirpath,'busco.log'),
-        err=join(busco_dirpath,'busco.err')
+        out=join(busco_dirpath, 'busco.log'),
+        err=join(busco_dirpath, 'busco.err')
     params:
         output_dir=busco_dirpath
     output:
@@ -204,12 +187,12 @@ rule download_busco:
 rule run_busco:
     input:
         database=db_dirpath,
-        contig=join(corrected_dirpath,"{sample}.fasta"),
+        contig=join(corrected_dirpath, "{sample}.fasta"),
     conda:
         "envs/busco.yaml"
     log:
-        out=join(busco_dirpath,'{sample}.log'),
-        err=join(busco_dirpath,'{sample}.err')
+        out=join(busco_dirpath, '{sample}.log'),
+        err=join(busco_dirpath, '{sample}.err')
     params:
         label="{sample}",
         output_dir=busco_dirpath
@@ -225,34 +208,34 @@ rule kmer_analysis_ref:
     conda:
         "envs/basic.yaml"
     log:
-        out=join(kmer_analyzer_dirpath,'kmc.log'),
-        err=join(kmer_analyzer_dirpath,'kmc.err')
+        out=join(kmer_analyzer_dirpath, 'kmc.log'),
+        err=join(kmer_analyzer_dirpath, 'kmc.err')
     params:
         output_dir=kmer_analyzer_dirpath,
         tmp_output_dir=tmp_kmer_analyzer_dirpath
     output:
-        join(tmp_kmer_analyzer_dirpath,'kmc.downsampled.txt')
+        join(tmp_kmer_analyzer_dirpath, 'kmc.downsampled.txt')
     shell:
         "python -m scripts.large_assembly_analysis.run_kmc_ref {params.output_dir} "
         "{params.tmp_output_dir} {input.reference} {config[threads]} >{log.out} 2>{log.err}"
 
 rule kmer_analysis:
     input:
-        contig=join(corrected_dirpath,"{sample}.fasta"),
+        contig=join(corrected_dirpath, "{sample}.fasta"),
         reference_csv=join(corrected_dirpath,corrected_reference + ".csv"),
-        downsampled_kmers_fpath=join(tmp_kmer_analyzer_dirpath,'kmc.downsampled.txt')
+        downsampled_kmers_fpath=join(tmp_kmer_analyzer_dirpath, 'kmc.downsampled.txt')
     conda:
         "envs/basic.yaml"
     log:
-        out=join(kmer_analyzer_dirpath,'{sample}.log'),
-        err=join(kmer_analyzer_dirpath,'{sample}.err')
+        out=join(kmer_analyzer_dirpath, '{sample}.log'),
+        err=join(kmer_analyzer_dirpath, '{sample}.err')
     params:
         label="{sample}",
-        ref_kmc_out_path=join(tmp_kmer_analyzer_dirpath,'reference.kmc'),
+        ref_kmc_out_path=join(tmp_kmer_analyzer_dirpath, 'reference.kmc'),
         output_dir=kmer_analyzer_dirpath,
         tmp_output_dir=tmp_kmer_analyzer_dirpath
     output:
-        join(kmer_analyzer_dirpath,'{sample}.stat')
+        join(kmer_analyzer_dirpath, '{sample}.stat')
     shell:
         "python -m scripts.large_assembly_analysis.run_kmc {params.output_dir} {params.tmp_output_dir} "
         "{params.ref_kmc_out_path} {input.reference_csv} {config[is_prokaryote]} {input.downsampled_kmers_fpath} "
