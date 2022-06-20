@@ -35,6 +35,7 @@ class Mapping(object):
         #    fields[2], int(fields[3]), int(fields[4]), fields[6], len(fields[9])
         self.ref, self.start, self.mapq, self.ref_next, self.len = ref, start, mapq, ref_next, query_len
         self.end = self.start + self.len - 1  # actually not always true because of indels
+        self.mapq = int(mapq)
 
     @staticmethod
     def parse(line):
@@ -127,7 +128,7 @@ def process_one_ref(cur_ref_fpath, output_dirpath, max_threads, bam_fpath=None, 
             return bed_fpath
 
     if not isfile(bam_sorted_fpath):
-        convert_sam(sam_fpath, bam_fpath, qconfig.max_threads, filter_rule='-f 2') # not unmapped and proper_pair
+        convert_sam(sam_fpath, bam_fpath, max_threads, filter_rule='-f 2') # not unmapped and proper_pair
         sort_bam(bam_fpath, bam_sorted_fpath, threads=max_threads)
     if not is_non_empty_file(bam_sorted_fpath + '.bai'):
         call_subprocess(['samtools', 'index', bam_sorted_fpath])
@@ -140,22 +141,17 @@ def process_one_ref(cur_ref_fpath, output_dirpath, max_threads, bam_fpath=None, 
         os.makedirs(vcf_output_dirpath)
         max_mem = get_gridss_memory()
         bwa_index(cur_ref_fpath)
-        qutils.call_subprocess(['java', '-ea', '-Xmx' + str(max_mem) + 'g', '-Dsamjdk.create_index=true', '-Dsamjdk.use_async_io_read_samtools=true',
-                                '-Dsamjdk.use_async_io_write_samtools=true', '-Dsamjdk.use_async_io_write_tribble=true',
-                                '-cp', 'gridss', 'gridss.CallVariants', 'I=' + bam_sorted_fpath, 'O=' + vcf_fpath,
-                                'ASSEMBLY=' + join(vcf_output_dirpath, ref_name + '.gridss.bam'), 'R=' + cur_ref_fpath,
-                                'WORKER_THREADS=' + str(max_threads), 'WORKING_DIR=' + vcf_output_dirpath])
+        qutils.call_subprocess(['gridss', '--reference', cur_ref_fpath, '--output', vcf_fpath, '--assembly',
+                                join(vcf_output_dirpath, ref_name + '.gridss.bam'),
+                                '--threads', str(max_threads), '--workingdir', vcf_output_dirpath, bam_sorted_fpath])
     if is_non_empty_file(vcf_fpath):
         raw_bed_fpath = add_suffix(bed_fpath, 'raw')
         filtered_bed_fpath = add_suffix(bed_fpath, 'filtered')
-        qutils.call_subprocess(['java', '-cp', 'gridss', 'au.edu.wehi.idsv.VcfBreakendToBedpe',
-                                'I=' + vcf_fpath, 'O=' + raw_bed_fpath, 'OF=' + filtered_bed_fpath, 'R=' + cur_ref_fpath,
-                                'INCLUDE_HEADER=TRUE'])
         reformat_bedpe(raw_bed_fpath, bed_fpath)
     return bed_fpath
 
 
-def search_sv_with_gridss(main_ref_fpath, bam_fpath, output_dirpath):
+def search_sv_with_gridss(main_ref_fpath, bam_fpath, output_dirpath, max_threads):
     print_info('  Searching structural variations with GRIDSS...')
     final_bed_fpath = join(output_dirpath, qutils.name_from_fpath(main_ref_fpath) + '_' + qconfig.sv_bed_fname)
     if isfile(final_bed_fpath):
@@ -169,24 +165,22 @@ def search_sv_with_gridss(main_ref_fpath, bam_fpath, output_dirpath):
         print_warning('R is required to run GRIDSS. Please install it and rerun QUAST.')
         return None
 
-    process_one_ref(main_ref_fpath, output_dirpath, qconfig.max_threads, bam_fpath=bam_fpath, bed_fpath=final_bed_fpath)
+    process_one_ref(main_ref_fpath, output_dirpath, max_threads, bam_fpath=bam_fpath, bed_fpath=final_bed_fpath)
     print_info('    Saving to: ' + final_bed_fpath)
     return final_bed_fpath
 
 
-def search_trivial_deletions(temp_output_dir, bam_fpath, ref_files, ref_labels, seq_lengths, need_ref_splitting):
+def search_trivial_deletions(temp_output_dir, bam_fpath, seq_lengths, need_ref_splitting=False):
     deletions = []
     trivial_deletions_fpath = join(temp_output_dir, qconfig.trivial_deletions_fname)
     print_info('  Looking for trivial deletions (long zero-covered fragments)...')
     need_trivial_deletions = True
-    if isfile(trivial_deletions_fpath):
-        need_trivial_deletions = False
-        print_info('    Using existing file: ' + trivial_deletions_fpath)
     if need_trivial_deletions or need_ref_splitting:
+        call_subprocess(['samtools', 'index', bam_fpath])
         bamfile = pysam.AlignmentFile(bam_fpath, "rb")
         cur_deletion = None
         for record in bamfile.fetch():
-            mapping = Mapping(record.reference_name, record.reference_start, record.qual, record.next_reference_name, record.query_alignment_length)
+            mapping = Mapping(record.reference_name, record.reference_start, record.mapping_quality, record.next_reference_name, record.query_alignment_length)
             if mapping:
                 if mapping.ref == '*':
                     continue
@@ -228,15 +222,15 @@ def search_trivial_deletions(temp_output_dir, bam_fpath, ref_files, ref_labels, 
                             deletions.append(cur_deletion)
                     cur_deletion = QuastDeletion(mapping.ref).set_prev_good(mapping)
 
-                if need_ref_splitting:
+                '''if need_ref_splitting:
                     cur_ref = ref_labels[mapping.ref]
-                    # if mapping.ref_next.strip() == '=' or cur_ref == ref_labels[mapping.ref_next]:
-                    #    if ref_files[cur_ref] is not None:
-                    #        ref_files[cur_ref].write(line)
-            if cur_deletion and cur_deletion.ref in seq_lengths:  # switched to the next ref
-                cur_deletion.set_next_good(position=seq_lengths[cur_deletion.ref])
-                if cur_deletion.is_valid():
-                    deletions.append(cur_deletion)
+                    if mapping.ref_next.strip() == '=' or cur_ref == ref_labels[mapping.ref_next]:
+                        if ref_files[cur_ref] is not None:
+                            ref_files[cur_ref].write(line)'''
+        if cur_deletion and cur_deletion.ref in seq_lengths:  # switched to the next ref
+            cur_deletion.set_next_good(position=seq_lengths[cur_deletion.ref])
+            if cur_deletion.is_valid():
+                deletions.append(cur_deletion)
     # if need_ref_splitting:
     #    for ref_handler in ref_files.values():
     #        if ref_handler is not None:
@@ -250,7 +244,7 @@ def search_trivial_deletions(temp_output_dir, bam_fpath, ref_files, ref_labels, 
     return trivial_deletions_fpath
 
 
-def align_reference(ref_fpath, output_dir, using_reads='all', calculate_coverage=False):
+def align_reference(ref_fpath, output_dir, using_reads='all', max_threads=4, calculate_coverage=False):
     required_files = []
     ref_name = qutils.name_from_fpath(ref_fpath)
     cov_fpath = qconfig.cov_fpath or join(output_dir, ref_name + '.cov')
@@ -269,7 +263,7 @@ def align_reference(ref_fpath, output_dir, using_reads='all', calculate_coverage
         os.makedirs(temp_output_dir)
 
     correct_chr_names, sam_fpath, bam_fpath = align_single_file(ref_fpath, output_dir, temp_output_dir,
-                                                                qconfig.max_threads, sam_fpath=qconfig.reference_sam,
+                                                                max_threads, sam_fpath=qconfig.reference_sam,
                                                                 bam_fpath=qconfig.reference_bam, required_files=required_files,
                                                                 alignment_only=True, reads_type=using_reads)
     if not qconfig.optimal_assembly_insert_size or qconfig.optimal_assembly_insert_size == 'auto':
@@ -300,98 +294,12 @@ def align_reference(ref_fpath, output_dir, using_reads='all', calculate_coverage
         if is_non_empty_file(bam_sorted_fpath):
             print_info('  Using existing sorted BAM-file: ' + bam_sorted_fpath)
         else:
-            convert_sam(bam_fpath, bam_mapped_fpath, qconfig.max_threads, filter_rule='-F 4') #not unmapped
+            convert_sam(bam_fpath, bam_mapped_fpath, max_threads, filter_rule='-F 4') #not unmapped
             sort_bam(bam_mapped_fpath, bam_sorted_fpath)
         if not is_non_empty_file(uncovered_fpath) and calculate_coverage:
             get_coverage(temp_output_dir, ref_fpath, ref_name, bam_fpath, bam_sorted_fpath,
-                         correct_chr_names, cov_fpath, uncovered_fpath=uncovered_fpath, create_cov_files=False)
+                         correct_chr_names, max_threads, cov_fpath, uncovered_fpath=uncovered_fpath, create_cov_files=False)
     return sam_fpath, bam_fpath, uncovered_fpath
-
-
-def process_reference(ref_fpath, ref_labels, bam_fpath, output_dir):
-    ref_name = qutils.name_from_fpath(ref_fpath)
-    temp_output_dir = join(output_dir, 'tmp')
-    if not isdir(temp_output_dir):
-        os.makedirs(temp_output_dir)
-
-    bed_fpath = qconfig.bed or join(output_dir, ref_name + '.bed')
-    cov_fpath = qconfig.cov_fpath or join(output_dir, ref_name + '.cov')
-    physical_cov_fpath = qconfig.phys_cov_fpath or join(output_dir, ref_name + '.physical.cov')
-    required_files = []
-
-    if qconfig.no_sv:
-        print_info('  Will not search Structural Variations (--fast or --no-sv is specified)')
-        bed_fpath = None
-    elif is_non_empty_file(bed_fpath):
-        if not is_valid_bed(bed_fpath):
-            print_warning('  Existing BED-file: ' + bed_fpath + ' may be corrupted. Bed file will be re-created. ')
-            required_files.append(join(output_dir, ref_name + '.bed'))
-        else: print_info('  Using existing BED-file: ' + bed_fpath)
-    elif not qconfig.forward_reads and not qconfig.interlaced_reads:
-        if not qconfig.reference_sam and not qconfig.reference_bam:
-            print_info('  Will not search Structural Variations (needs paired-end reads)')
-            bed_fpath = None
-            qconfig.no_sv = True
-    else:
-        required_files.append(bed_fpath)
-    if qconfig.create_icarus_html:
-        if is_non_empty_file(cov_fpath):
-            is_correct_file = check_cov_file(cov_fpath)
-            if is_correct_file:
-                print_info('  Using existing reads coverage file: ' + cov_fpath)
-            else:
-                required_files.append(cov_fpath)
-        if is_non_empty_file(physical_cov_fpath):
-            print_info('  Using existing physical coverage file: ' + physical_cov_fpath)
-        else:
-            required_files.append(physical_cov_fpath)
-    else:
-        print_info('  Will not calculate coverage (--fast or --no-html, or --no-icarus, or --space-efficient is specified)')
-        cov_fpath = None
-        physical_cov_fpath = None
-
-    bam_mapped_fpath = get_safe_fpath(temp_output_dir, add_suffix(bam_fpath, 'mapped'))
-    bam_sorted_fpath = get_safe_fpath(temp_output_dir, add_suffix(bam_mapped_fpath, 'sorted'))
-
-    convert_sam(bam_fpath, bam_mapped_fpath, qconfig.max_threads, filter_rule='-F 4') #not unmapped
-    sort_bam(bam_mapped_fpath, bam_sorted_fpath)
-    if qconfig.create_icarus_html and (not is_non_empty_file(cov_fpath) or not is_non_empty_file(physical_cov_fpath)):
-        cov_fpath, physical_cov_fpath = get_coverage(temp_output_dir, ref_fpath, ref_name, bam_fpath, bam_sorted_fpath,
-                                                     correct_chr_names, cov_fpath, physical_cov_fpath)
-    if not is_non_empty_file(bed_fpath) and not qconfig.no_sv:
-        bamfile = pysam.AlignmentFile(bam_sorted_fpath, "rb")
-        seq_names = bamfile.references
-        seq_lengths = bamfile.lengths
-        seq_lengths_dict = dict(zip(seq_names, seq_lengths))
-        need_ref_splitting = False
-        ref_files = {}
-
-        trivial_deletions_fpath = \
-            search_trivial_deletions(temp_output_dir, bam_sorted_fpath, ref_files, ref_labels, seq_lengths_dict, need_ref_splitting)
-        try:
-            gridss_sv_fpath = search_sv_with_gridss(ref_fpath, bam_mapped_fpath, temp_output_dir)
-            qutils.cat_files([gridss_sv_fpath, trivial_deletions_fpath], bed_fpath)
-        except:
-            pass
-        if isfile(trivial_deletions_fpath) and not is_non_empty_file(bed_fpath):
-            shutil.copy(trivial_deletions_fpath, bed_fpath)
-
-    if not qconfig.no_sv:
-        if is_non_empty_file(bed_fpath):
-            print_info('  Structural variations are in ' + bed_fpath)
-        else:
-            if isfile(bed_fpath):
-                print_info('  No structural variations were found.')
-            else:
-                print_info('  Failed searching structural variations.')
-            bed_fpath = None
-    if is_non_empty_file(cov_fpath):
-        print_info('  Coverage distribution along the reference genome is in ' + cov_fpath)
-    else:
-        if not qconfig.create_icarus_html:
-            print_info('  Failed to calculate coverage distribution')
-        cov_fpath = None
-    return bed_fpath, cov_fpath, physical_cov_fpath
 
 
 def parse_reads_stats(stats_fpath):
@@ -487,16 +395,14 @@ def parse_read_stats(labels, reports, output_dir, ref_fpath):
     save_reads(reports, output_dir)
 
 
-def get_physical_coverage(output_dirpath, ref_name, bam_fpath, cov_fpath, chr_len_fpath):
+def get_physical_coverage(output_dirpath, ref_name, bam_fpath, cov_fpath, chr_len_fpath, threads):
     raw_cov_fpath = add_suffix(cov_fpath, 'raw')
     if not is_non_empty_file(raw_cov_fpath):
         print_info('  Calculating physical coverage...')
         ## keep properly mapped, unique, non-duplicate paired-end reads only
         bam_filtered_fpath = join(output_dirpath, ref_name + '.physical.bam')
-        convert_sam(bam_fpath, bam_filtered_fpath, qconfig.max_threads,
-                      filter_rule='-f 2 -F 256' #not supplementary and proper_pair
-                                  'and template_length > %d and template_length < %d' %
-                                  (-qconfig.MAX_PE_IS, qconfig.MAX_PE_IS))
+        convert_sam(bam_fpath, bam_filtered_fpath, threads,
+                      filter_rule='-f 2 -F 256') #not supplementary and proper_pair
         ## sort by read names
         bam_filtered_sorted_fpath = join(output_dirpath, ref_name + '.physical.sorted.bam')
         sort_bam(bam_filtered_fpath, bam_filtered_sorted_fpath, sort_rule='-n')
@@ -505,7 +411,7 @@ def get_physical_coverage(output_dirpath, ref_name, bam_fpath, cov_fpath, chr_le
     return raw_cov_fpath
 
 
-def get_coverage(output_dirpath, ref_fpath, ref_name, bam_fpath, bam_sorted_fpath, correct_chr_names,
+def get_coverage(output_dirpath, ref_fpath, ref_name, bam_fpath, bam_sorted_fpath, correct_chr_names, max_threads,
                  cov_fpath, physical_cov_fpath=None, uncovered_fpath=None, create_cov_files=True):
     raw_cov_fpath = cov_fpath + '_raw'
     chr_len_fpath = get_chr_len_fpath(ref_fpath, correct_chr_names)
@@ -522,7 +428,7 @@ def get_coverage(output_dirpath, ref_fpath, ref_name, bam_fpath, bam_sorted_fpat
             proceed_cov_file(raw_cov_fpath, cov_fpath, correct_chr_names)
     if not is_non_empty_file(physical_cov_fpath) and create_cov_files:
         raw_cov_fpath = get_physical_coverage(output_dirpath, ref_name, bam_fpath,
-                                              physical_cov_fpath, chr_len_fpath)
+                                              physical_cov_fpath, chr_len_fpath, max_threads)
         proceed_cov_file(raw_cov_fpath, physical_cov_fpath, correct_chr_names)
     return cov_fpath, physical_cov_fpath
 

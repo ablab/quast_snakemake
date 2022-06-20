@@ -52,8 +52,10 @@ else:
 reads_analyzer_dirpath = join(config['output_dir'], 'reads_analyzer')
 if config['reads_files']:
     reads_analyzer_output = expand(join(reads_analyzer_dirpath, "{sample}.stat"), sample=config['samples'])
+    reads_analyzer_ref_output = join(reads_analyzer_dirpath, "reference.cov")
 else:
     reads_analyzer_output = list()
+    reads_analyzer_ref_output = list()
 
 for d in [minimap_dirpath, icarus_dirpath, aux_dirpath, tmp_gene_pred_dirpath]:
     if d and not isdir(d):
@@ -314,7 +316,7 @@ rule calculate_coverage:
 rule analyze_ref:
     input:
         reference=join(corrected_dirpath, corrected_reference),
-        bam_file=join(corrected_dirpath, "reference.bam"),
+        bam_file=join(reads_analyzer_dirpath, "reference.bam"),
     conda:
         "envs/basic.yaml"
     log:
@@ -326,11 +328,11 @@ rule analyze_ref:
         reads_option='--reads_fpaths',
         reads_types_option='--reads_types',
     output:
-        join(reads_analyzer_dirpath, 'reference.stat')
+        reads_analyzer_ref_output
     shell:
         "python -m scripts.read_mapping.process_reference "
-        "--reference {input.reference} --output_dir {reads_analyzer_dirpath} --threads {jobs_threads} "
-        "{params.reads_types_option} {params.reads_types} {params.reads_option} {input.reads_fpaths}"
+        "{input.reference} {input.bam_file} {reads_analyzer_dirpath} {config[threads]} {config[search_sv]} "
+        ">{log.out} 2>{log.err}"
 
 rule save_stats:
     input:
@@ -342,6 +344,7 @@ rule save_stats:
         features=features_input,
         gene_pred_output=gene_pred_output,
         reads_analyzer_output=reads_analyzer_output,
+        reads_analyzer_ref_output=reads_analyzer_ref_output,
         busco_output=busco_output,
         kmer_output=kmer_output
     conda:

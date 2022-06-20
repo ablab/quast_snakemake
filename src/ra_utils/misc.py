@@ -103,7 +103,7 @@ def paired_reads_names_are_equal(reads_fpaths, temp_output_dir):
     return True
 
 
-def get_correct_names_for_chroms(output_dirpath, fasta_fpath, alignment_fpath, reads_csv):
+def get_correct_names_for_chroms(output_dirpath, fasta_fpath, alignment_fpath, reads_csv=None):
     correct_chr_names = dict()
     fasta_chr_lengths = get_chr_lengths_from_fastafile(fasta_fpath)
     alignment_chr_lengths = OrderedDict()

@@ -266,7 +266,11 @@ def main():
 
     if exists(args.busco_dirpath): parse_busco(labels, reports, args.busco_dirpath, args.lineage)
 
-    if exists(args.reads_analyzer_dirpath): parse_read_stats(labels, reports, args.reads_analyzer_dirpath, ref_fpath)
+    if exists(args.reads_analyzer_dirpath):
+        parse_read_stats(labels, reports, args.reads_analyzer_dirpath, ref_fpath)
+        cov_fpath = join(args.reads_analyzer_dirpath, 'reference.cov')
+        physical_cov_fpath = join(args.reads_analyzer_dirpath, 'reference.physical.cov')
+    else: cov_fpath, physical_cov_fpath = None, None
 
     html_saver.save_colors(output_dirpath, labels, dict_color_and_ls)
     html_saver.save_total_report(reports, output_dirpath, labels, qconfig.min_contig, ref_fpath)
@@ -311,8 +315,8 @@ def main():
                 icarus_html_fpath = icarus.do(reports,
                     contigs_fpaths, report_for_icarus_fpath_pattern, output_dirpath, ref_fpath,
                     stdout_pattern=stdout_pattern, gc_fpath=icarus_gc_fpath, json_output_dir=qconfig.json_output_dirpath,
-                    features=features_containers, genes_by_labels=genes_by_labels)
-                    #cov_fpath=cov_fpath, physical_cov_fpath=physical_cov_fpath,
+                    features=features_containers, genes_by_labels=genes_by_labels,
+                    cov_fpath=cov_fpath, physical_cov_fpath=physical_cov_fpath)
 
             if draw_circos_plot:
                 print_info('  %d of %d: Creating Circos plot...' % (number_of_steps, number_of_steps))

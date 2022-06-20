@@ -42,3 +42,5 @@ reads_files:
 
 reads_types:
     - pe
+
+search_sv: True
