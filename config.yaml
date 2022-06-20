@@ -12,11 +12,11 @@ is_fungus: False
 
 ### ----- MODULES ----- ###
 
-gene_prediction: True
+gene_prediction: False
 
-busco: True
+busco: False
 
-kmer_analysis: True
+kmer_analysis: False
 
 ### ----- TEST FILES ----- ###
 samples:
@@ -36,3 +36,9 @@ features_files:
 features:
     - gene
     - operon
+
+reads_files:
+    - test_data/reads1.fastq.gz,test_data/reads2.fastq.gz
+
+reads_types:
+    - pe

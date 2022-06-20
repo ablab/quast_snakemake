@@ -14,6 +14,7 @@ from src.icarus import icarus
 from src.kmers_analyzer import parse_kmer_results
 from src.logger import print_info, print_timestamp, print_error, print_warning
 from src.plotter_aux import dict_color_and_ls, save_colors_and_ls
+from src.reads_analyzer import parse_read_stats
 from src.save_results import *
 
 
@@ -227,6 +228,7 @@ def main():
     parser.add_argument('--contig_analyzer_dirpath')
     parser.add_argument('--genome_analyzer_dirpath')
     parser.add_argument('--kmer_analyzer_dirpath')
+    parser.add_argument('--reads_analyzer_dirpath')
     parser.add_argument('--gene_pred_dirpath')
     parser.add_argument('--busco_dirpath')
     parser.add_argument('--lineage')
@@ -263,6 +265,8 @@ def main():
     genes_by_labels = parse_gene_pred(labels, reports, args.gene_pred_dirpath)
 
     if exists(args.busco_dirpath): parse_busco(labels, reports, args.busco_dirpath, args.lineage)
+
+    if exists(args.reads_analyzer_dirpath): parse_read_stats(labels, reports, args.reads_analyzer_dirpath, ref_fpath)
 
     html_saver.save_colors(output_dirpath, labels, dict_color_and_ls)
     html_saver.save_total_report(reports, output_dirpath, labels, qconfig.min_contig, ref_fpath)

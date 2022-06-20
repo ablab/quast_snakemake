@@ -8,6 +8,7 @@ dependencies:
   - pandas
   - matplotlib
   - minimap2
+  - pysam
   - bottle
   - circos
   - prodigal

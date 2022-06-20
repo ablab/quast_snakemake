@@ -49,6 +49,12 @@ if config['kmer_analysis'] and get_path_to_program('kmc'):
 else:
     kmer_output = list()
 
+reads_analyzer_dirpath = join(config['output_dir'], 'reads_analyzer')
+if config['reads_files']:
+    reads_analyzer_output = expand(join(reads_analyzer_dirpath, "{sample}.stat"), sample=config['samples'])
+else:
+    reads_analyzer_output = list()
+
 for d in [minimap_dirpath, icarus_dirpath, aux_dirpath, tmp_gene_pred_dirpath]:
     if d and not isdir(d):
         os.makedirs(d)
@@ -125,6 +131,7 @@ rule prepare_genome_analyzer:
         features_paths_option='--features_fpaths' if features_input else '',
     output:
         info=join(genome_analyzer_dirpath, 'genome_info.txt'),
+        features=features_input
     shell:
         "python -m scripts.gene_finding.prepare_genome_analyzer "
         "--output_dir {params.output_dir} --reference {input.reference_csv} --labels {params.labels} "
@@ -136,19 +143,19 @@ rule genome_analyzer:
         contig=join(corrected_dirpath, "{sample}.fasta"),
         contig_stdout=expand(join(config['output_dir'], "contig_analyzer/contigs_report_{sample}.stdout"), sample=config['samples']),
         reference_csv=join(corrected_dirpath, corrected_reference + ".csv"),
-        features_input=features_input,
     log:
         out = join(genome_analyzer_dirpath, '{sample}.log'),
         err = join(genome_analyzer_dirpath, '{sample}.err')
     params:
         label="{sample}",
+        features_input=features_input,
         output_dir=genome_analyzer_dirpath,
         coords_dir=minimap_dirpath
     output:
         join(genome_analyzer_dirpath, '{sample}_info.txt')
     shell:
         "python -m scripts.gene_finding.genome_analyzer {params.output_dir} {input.reference_csv} {input.contig} {params.label} "
-        "{params.coords_dir} {input.features_input} >{log.out} 2>{log.err}"
+        "{params.coords_dir} {params.features_input} >{log.out} 2>{log.err}"
 
 rule gene_prediction:
     input:
@@ -242,6 +249,89 @@ rule kmer_analysis:
         "{input.contig} {params.label} "
         "{jobs_threads} >{log.out} 2>{log.err}"
 
+rule align_reads_contigs:
+    input:
+        contigs=join(corrected_dirpath, "{sample}.fasta"),
+    conda:
+        "envs/basic.yaml"
+    log:
+        out=join(reads_analyzer_dirpath, '{sample}.log'),
+        err=join(reads_analyzer_dirpath, '{sample}.err')
+    params:
+        reads_analyzer_dirpath=reads_analyzer_dirpath,
+        reads_fpaths=config['reads_files'],
+        reads_types=config['reads_types'],
+        reads_option='--reads_fpaths',
+        reads_types_option='--reads_types',
+    output:
+        join(reads_analyzer_dirpath, '{sample}.bam')
+    shell:
+        "python -m scripts.read_mapping.align_reads "
+        "--reference {input.contigs} --output_dir {reads_analyzer_dirpath} --threads {jobs_threads} "
+        "{params.reads_types_option} {params.reads_types} {params.reads_option} {params.reads_fpaths} >{log.out} 2>{log.err}"
+
+rule align_reads_ref:
+    input:
+        reference=join(corrected_dirpath, corrected_reference),
+    conda:
+        "envs/basic.yaml"
+    log:
+        out=join(reads_analyzer_dirpath, 'reference.log'),
+        err=join(reads_analyzer_dirpath, 'reference.err')
+    params:
+        reads_analyzer_dirpath=reads_analyzer_dirpath,
+        reads_types=config['reads_types'],
+        reads_fpaths=config['reads_files'],
+        reads_option='--reads_fpaths',
+        reads_types_option='--reads_types',
+    output:
+        join(reads_analyzer_dirpath, 'reference.bam')
+    shell:
+        "python -m scripts.read_mapping.align_reads "
+        "--reference {input.reference} --output_dir {reads_analyzer_dirpath} --threads {config[threads]} "
+        "{params.reads_types_option} {params.reads_types} {params.reads_option} {params.reads_fpaths} >{log.out} 2>{log.err}"
+
+rule calculate_coverage:
+    input:
+        contigs=join(corrected_dirpath, "{sample}.fasta"),
+        bam_file=join(reads_analyzer_dirpath, "{sample}.bam"),
+    conda:
+        "envs/basic.yaml"
+    log:
+        out=join(reads_analyzer_dirpath, '{sample}.log'),
+        err=join(reads_analyzer_dirpath, '{sample}.err')
+    params:
+        reads_analyzer_dirpath=reads_analyzer_dirpath,
+        reads_types=config['reads_types'],
+        reads_option='--reads_fpaths',
+        reads_types_option='--reads_types',
+    output:
+        join(reads_analyzer_dirpath, '{sample}.stat')
+    shell:
+        "python -m scripts.read_mapping.analyze_reads {params.reads_analyzer_dirpath} {input.contigs} "
+        "{input.bam_file} {jobs_threads} >{log.out} 2>{log.err}"
+
+rule analyze_ref:
+    input:
+        reference=join(corrected_dirpath, corrected_reference),
+        bam_file=join(corrected_dirpath, "reference.bam"),
+    conda:
+        "envs/basic.yaml"
+    log:
+        out=join(reads_analyzer_dirpath, 'reference.log'),
+        err=join(reads_analyzer_dirpath, 'reference.err')
+    params:
+        reads_analyzer_dirpath=reads_analyzer_dirpath,
+        reads_types=config['reads_types'],
+        reads_option='--reads_fpaths',
+        reads_types_option='--reads_types',
+    output:
+        join(reads_analyzer_dirpath, 'reference.stat')
+    shell:
+        "python -m scripts.read_mapping.process_reference "
+        "--reference {input.reference} --output_dir {reads_analyzer_dirpath} --threads {jobs_threads} "
+        "{params.reads_types_option} {params.reads_types} {params.reads_option} {input.reads_fpaths}"
+
 rule save_stats:
     input:
         contigs=expand(join(corrected_dirpath, "{sample}.fasta"), sample=config['samples']),
@@ -251,6 +341,7 @@ rule save_stats:
         genome_info=expand(join(genome_analyzer_dirpath, '{sample}_info.txt'), sample=config['samples']),
         features=features_input,
         gene_pred_output=gene_pred_output,
+        reads_analyzer_output=reads_analyzer_output,
         busco_output=busco_output,
         kmer_output=kmer_output
     conda:
@@ -264,6 +355,7 @@ rule save_stats:
         features_option='--features' if features_input else '',
         tmp_gene_pred_dirpath=tmp_gene_pred_dirpath if gene_pred_output else None,
         kmer_analyzer_dirpath=kmer_analyzer_dirpath if kmer_output else None,
+        reads_analyzer_dirpath=reads_analyzer_dirpath if reads_analyzer_output else None,
         busco_dirpath=busco_dirpath if busco_output else None,
         lineage=lineage,
     output:
@@ -274,5 +366,6 @@ rule save_stats:
         "{params.features_option} {input.features} --genome_analyzer_dirpath {params.genome_analyzer_dirpath} "
         "--gene_pred_dirpath {params.tmp_gene_pred_dirpath} "
         "--kmer_analyzer_dirpath {params.kmer_analyzer_dirpath} "
+        "--reads_analyzer_dirpath {params.reads_analyzer_dirpath} "
         "--busco_dirpath {params.busco_dirpath} --lineage {params.lineage} --contigs_fpaths {input.contigs} >{log.out} 2>{log.err}"
 
