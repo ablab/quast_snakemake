@@ -87,6 +87,6 @@ def au_metric(numlist, reference_length=None):
         else:
             denum = float(sum(numlist))
         assert denum > 0.0, 'all contigs are 0'
-        return float(sum([n ** 2 for n in numlist])) / denum
+        return round(float(sum([n ** 2 for n in numlist])) / denum, 2)
     except AssertionError:
         return None
