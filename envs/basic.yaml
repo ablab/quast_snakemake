@@ -5,6 +5,7 @@ channels:
   - bioconda
 
 dependencies:
+  - biopython
   - pandas
   - matplotlib
   - minimap2
