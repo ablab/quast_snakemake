@@ -11,6 +11,7 @@ corrected_dirpath = join(config['output_dir'], config['CORRECTED_DIRPATH'])
 
 gene_pred_dirpath = join(config['output_dir'], 'gene_prediction')
 tmp_gene_pred_dirpath = join(gene_pred_dirpath, 'tmp')
+jobs_threads = max(1, config['threads']//len(config['samples']))
 
 gene_pred_output = list()
 if config['gene_prediction']:

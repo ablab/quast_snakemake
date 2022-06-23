@@ -85,7 +85,7 @@ def parse_genome_stats(reports, reference_csv, assemblies, labels, output_dirpat
     ref_genes_num, ref_operons_num = 0, 0
     for i, label in enumerate(labels):
         contig_result_fpath = join(genome_analyzer_dirpath, label + '_contig_info.txt')
-        if exists(result_fpath):
+        if exists(contig_result_fpath):
             df = pd.read_csv(contig_result_fpath, index_col=0)
 
             files_features_in_contigs[label] = df.loc['features'].dropna().to_list()
@@ -160,7 +160,8 @@ def parse_gene_pred(labels, reports, gene_pred_dirpath):
     # saving label
     for label in labels:
         gene_pred_csv = join(gene_pred_dirpath, label + '.csv')
-        if not exists(gene_pred_csv): continue
+        if not exists(gene_pred_csv):
+            continue
         df = pd.read_csv(gene_pred_csv, index_col=0)
         genes_list = df.loc['genes'].apply(literal_eval).dropna().to_list()
         genes_list = [Gene(**g) for g in genes_list]
@@ -264,9 +265,10 @@ def main():
 
     genes_by_labels = parse_gene_pred(labels, reports, args.gene_pred_dirpath)
 
-    if exists(args.busco_dirpath): parse_busco(labels, reports, args.busco_dirpath, args.lineage)
+    if args.busco_dirpath and exists(args.busco_dirpath):
+        parse_busco(labels, reports, args.busco_dirpath, args.lineage)
 
-    if exists(args.reads_analyzer_dirpath):
+    if args.reads_analyzer_dirpath and exists(args.reads_analyzer_dirpath):
         parse_read_stats(labels, reports, args.reads_analyzer_dirpath, ref_fpath)
         cov_fpath = join(args.reads_analyzer_dirpath, 'reference.cov')
         physical_cov_fpath = join(args.reads_analyzer_dirpath, 'reference.physical.cov')
