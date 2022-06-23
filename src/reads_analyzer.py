@@ -18,7 +18,7 @@ from os.path import isfile, join, basename, abspath, isdir, dirname, exists
 import pysam as pysam
 
 from src import qconfig, reporting
-from src.align_reads import align_single_file
+# from src.align_reads import align_single_file
 from src.qutils import *
 from src.ra_utils.misc import *
 from src.reporting import save_reads
