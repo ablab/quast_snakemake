@@ -97,7 +97,7 @@ def save_result(result, report, label, ref_fpath, genome_size):
                      region_misassemblies.count(Misassembly.INVERSION) + region_misassemblies.count(Misassembly.TRANSLOCATION) +
                      region_misassemblies.count(Misassembly.INTERSPECTRANSLOCATION))
     report.add_field(reporting.Fields.MISCONTIGS, len(misassembled_contigs))
-    report.add_field(reporting.Fields.MISCONTIGSBASES, misassembled_bases)
+    report.add_field(reporting.Fields.MISCONTIGSBASES, sum(misassembled_bases))
     report.add_field(reporting.Fields.MISINTERNALOVERLAP, misassembly_internal_overlap)
     if qconfig.bed:
         report.add_field(reporting.Fields.STRUCT_VARIATIONS, region_misassemblies.count(Misassembly.MATCHED_SV))
@@ -115,7 +115,7 @@ def save_result(result, report, label, ref_fpath, genome_size):
         report.add_field(reporting.Fields.MIS_SHORT_INDELS, len([i for i in indels_list if i <= qconfig.SHORT_INDEL_THRESHOLD]))
         report.add_field(reporting.Fields.MIS_LONG_INDELS, len([i for i in indels_list if i > qconfig.SHORT_INDEL_THRESHOLD]))
 
-    if aligned_ref_bases:
+    if aligned_ref_bases is not None:
         genome_fraction = aligned_ref_bases * 100.0 / genome_size
         duplication_ratio = float(aligned_assembly_bases +
                                   misassembly_internal_overlap +
@@ -134,7 +134,7 @@ def save_result(result, report, label, ref_fpath, genome_size):
     report.add_field(reporting.Fields.MIS_TRANSLOCATION, region_misassemblies.count(Misassembly.TRANSLOCATION))
     report.add_field(reporting.Fields.MIS_INVERTION, region_misassemblies.count(Misassembly.INVERSION))
     report.add_field(reporting.Fields.MIS_EXTENSIVE_CONTIGS, len(misassembled_contigs))
-    report.add_field(reporting.Fields.MIS_EXTENSIVE_BASES, misassembled_bases)
+    report.add_field(reporting.Fields.MIS_EXTENSIVE_BASES, sum(misassembled_bases))
     report.add_field(reporting.Fields.MIS_LOCAL, region_misassemblies.count(Misassembly.LOCAL))
     # special case for separating contig and scaffold misassemblies
     report.add_field(reporting.Fields.SCF_MIS_ALL_EXTENSIVE, region_misassemblies.count(Misassembly.SCF_RELOCATION) +

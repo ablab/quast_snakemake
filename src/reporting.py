@@ -268,7 +268,7 @@ class Fields:
                         UNCALLED_PERCENT, UNCALLED, ]),
 
         ('Statistics without reference', [CONTIGS, CONTIGS__FOR_THRESHOLDS, LARGCONTIG, TOTALLEN, TOTALLENS__FOR_THRESHOLDS,
-                                          N50, auN, Nx, L50, Lx, GC,]),
+                                          N50, Nx, auN, L50, Lx, GC,]),
 
         ('K-mer-based statistics', [KMER_COMPLETENESS, KMER_CORR_LENGTH, KMER_MIS_LENGTH, KMER_UNDEF_LENGTH,
                                     KMER_MISASSEMBLIES, KMER_TRANSLOCATIONS, KMER_RELOCATIONS]),
@@ -441,6 +441,26 @@ def table(reports, order=Fields.order, ref_name=None):
         order = [('', order)]
 
     table = []
+    required_fields = []
+
+    def define_required_fields():
+        # if a reference is specified, keep the same number of Nx/Lx-like genome-based metrics in different reports
+        # (no matter what percent of the genome was assembled)
+        report = reports[assembly_labels[0]]
+        if report.get_field(Fields.REFLEN):
+            anyone_aligned = False
+            for assembly_label in assembly_labels:
+                report = reports[assembly_label]
+                if report.get_field(Fields.MAPPEDGENOME):
+                    anyone_aligned = True
+                    break
+
+            if anyone_aligned:
+                required_fields.extend([Fields.NA50, Fields.LA50, Fields.NAx, Fields.LAx])
+            if not qconfig.is_combined_ref:
+                required_fields.extend([Fields.NG50, Fields.LG50, Fields.NGx, Fields.LGx])
+                if anyone_aligned:
+                    required_fields.extend([Fields.NGA50, Fields.LGA50, Fields.NGAx, Fields.LGAx])
 
     def append_line(rows, field, are_multiple_thresholds=False, pattern=None, feature=None, i=None, ref_name=None):
         quality = get_quality(field)
@@ -455,11 +475,6 @@ def table(reports, order=Fields.order, ref_name=None):
             else:
                 values.append(value)
 
-        required_fields = []
-        if report.get_field(Fields.REFLEN):  # keep the same number of metrics in different reports (no matter what percent of the genome was assembled)
-            required_fields = [Fields.NA50, Fields.LA50, Fields.NAx, Fields.LAx]
-            if not qconfig.is_combined_ref:
-                required_fields.extend([Fields.NG50, Fields.NGA50, Fields.LG50, Fields.LGA50, Fields.NGx, Fields.NGAx, Fields.LGx, Fields.LGAx])
         if list(filter(lambda v: v is not None, values)) or field in required_fields:
             metric_name = field if (feature is None) else pattern % int(feature)
             # ATTENTION! Contents numeric values, needed to be converted to strings.
@@ -470,6 +485,7 @@ def table(reports, order=Fields.order, ref_name=None):
                 'isMain': metric_name in Fields.main_metrics,
             })
 
+    define_required_fields()
     for group_name, metrics in order:
         rows = []
         table.append((group_name, rows))

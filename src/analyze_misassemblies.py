@@ -30,6 +30,8 @@ class Misassembly:
 
 
 class StructuralVariations(object):
+    __slots__ = ("inversions", "relocations", "translocations")
+
     def __init__(self):
         self.inversions = []
         self.relocations = []
@@ -40,6 +42,8 @@ class StructuralVariations(object):
 
 
 class Mapping(object):
+    __slots__ = ("s1", "e1", "s2", "e2", "len1", "len2", "idy", "ref", "contig", "cigar", "ns_pos", "sv_type")
+
     def __init__(self, s1, e1, s2=None, e2=None, len1=None, len2=None, idy=None, ref=None, contig=None, cigar=None, ns_pos=None, sv_type=None):
         self.s1, self.e1, self.s2, self.e2, self.len1, self.len2, self.idy, self.ref, self.contig = s1, e1, s2, e2, len1, len2, idy, ref, contig
         self.cigar = cigar
@@ -90,6 +94,8 @@ class Mapping(object):
 
 
 class IndelsInfo(object):
+    __slots__ = ("mismatches", "insertions", "deletions", "indels_list")
+
     def __init__(self):
         self.mismatches = 0
         self.insertions = 0
@@ -565,8 +571,9 @@ def process_misassembled_contig(sorted_aligns, is_cyclic, aligned_lengths, regio
                 region_misassemblies.append(Misassembly.FRAGMENTED)
                 misassemblies_by_ref[prev_ref].append(Misassembly.FRAGMENTED)
                 ca_output.icarus_out_f.write('fake: not a misassembly' + reason_msg + '\n')
-            elif abs(inconsistency) <= qconfig.MAX_INDEL_LENGTH and \
-                            count_ns_and_not_ns_between_aligns(contig_seq, prev_align, next_align)[1] <= max(qconfig.min_alignment, qconfig.MAX_INDEL_LENGTH):
+            elif abs(inconsistency) <= qconfig.local_misassembly_min_length and \
+                            count_ns_and_not_ns_between_aligns(contig_seq, prev_align, next_align)[1] <= \
+                    max(qconfig.min_alignment, qconfig.local_misassembly_min_length - 1):
                 ns_number, not_ns_number = count_ns_and_not_ns_between_aligns(contig_seq, prev_align, next_align)
 
                 if inconsistency == 0:
@@ -627,7 +634,7 @@ def process_misassembled_contig(sorted_aligns, is_cyclic, aligned_lengths, regio
                                                             is_cyclic, is_cyclic_contig=True, region_struct_variations=region_struct_variations)
         if not is_extensive_misassembly and not aux_data["is_scaffold_gap"] and not aux_data["is_sv"]:
             inconsistency = abs(aux_data["inconsistency"])
-            if not qconfig.strict_NA or inconsistency <= qconfig.MAX_INDEL_LENGTH:
+            if not qconfig.strict_NA or inconsistency <= qconfig.local_misassembly_min_length:
                 contig_aligned_lengths[0] += contig_aligned_lengths[-1]
                 contig_aligned_lengths = contig_aligned_lengths[:-1]
 

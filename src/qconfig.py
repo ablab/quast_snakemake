@@ -179,10 +179,11 @@ min_similar_contig_size = 10000
 # indels and misassemblies
 SHORT_INDEL_THRESHOLD = 5 # for separating short and long indels
 SPLIT_ALIGN_THRESHOLD = 20 # for splitting low-identity alignments by the indels/mismatches
-MAX_INDEL_LENGTH = 85  # for separating indels and local misassemblies
+
+local_misassembly_min_length = 200  # for separating indels and local misassemblies (former MAX_INDEL_LENGTH)
 DEFAULT_EXT_MIS_SIZE = 1000
+fragmented_max_indent = local_misassembly_min_length # for fake translocation in fragmented reference
 extensive_misassembly_threshold = DEFAULT_EXT_MIS_SIZE  # for separating local and extensive misassemblies (relocation)
-fragmented_max_indent = MAX_INDEL_LENGTH # for fake translocation in fragmented reference
 
 # large genome params
 LARGE_EXTENSIVE_MIS_THRESHOLD = 7000

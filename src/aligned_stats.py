@@ -98,13 +98,13 @@ def parse_aligner_stats(reports, output_dirpath, assemblies, labels, ref_fpath, 
         reports[label].add_field(reporting.Fields.TOTAL_ALIGNED_LEN, sum(lens))
         reports[label].add_field(reporting.Fields.NA50, na50)
         reports[label].add_field(reporting.Fields.NAx, nax)
-        reports[label].add_field(reporting.Fields.auNA, auNA)
+        reports[label].add_field(reporting.Fields.auNA, ('%.1f' % auNA if auNA is not None else None))
         reports[label].add_field(reporting.Fields.LA50, la50)
         reports[label].add_field(reporting.Fields.LAx, lax)
         if not qconfig.is_combined_ref:
             reports[label].add_field(reporting.Fields.NGA50, nga50)
             reports[label].add_field(reporting.Fields.NGAx, ngax)
-            reports[label].add_field(reporting.Fields.auNGA, auNGA)
+            reports[label].add_field(reporting.Fields.auNGA, ('%.1f' % auNGA if auNGA is not None else None))
             reports[label].add_field(reporting.Fields.LGA50, lga50)
             reports[label].add_field(reporting.Fields.LGAx, lgax)
 

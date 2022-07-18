@@ -14,6 +14,8 @@ from src.analyze_misassemblies import *
 
 
 class ScoredSet(object):
+    __slots__ = ("score", "indexes", "uncovered")
+
     def __init__(self, score, indexes, uncovered):
         self.score = score
         self.indexes = indexes
@@ -21,6 +23,8 @@ class ScoredSet(object):
 
 
 class PutativeBestSet(object):
+    __slots__ = ("indexes", "score_drop", "uncovered")
+
     def __init__(self, indexes, score_drop, uncovered):
         self.indexes = indexes
         self.score_drop = score_drop
@@ -46,6 +50,8 @@ class PutativeBestSet(object):
 
 
 class PSA(object):  # PSA stands for Possibly Solid Alignment (solid alignments are definitely present in the best set)
+    __slots__ = ("align", "num_sides", "start", "unique_end", "total_unique_len", "end_overlap_penalty", "start_overlap_penalty")
+
     overlap_penalty_coeff = 0
     max_single_side_penalty = 0
     min_unique_len = 0
@@ -78,6 +84,8 @@ class PSA(object):  # PSA stands for Possibly Solid Alignment (solid alignments 
 
 
 class SolidRegion(object):
+    __slots__ = ("start", "end")
+
     def __init__(self, align):
         self.start = align.start()
         self.end = align.end()
@@ -186,7 +194,7 @@ def get_best_aligns_sets(sorted_aligns, ctg_len, stdout_f, seq, ref_lens, is_cyc
         for scored_set in reversed(all_scored_sets):
             if scored_set.indexes and scored_set.indexes[-1] < cur_solid_idx:
                 break
-            cur_set_aligns = [sorted_aligns[i].clone() for i in scored_set.indexes] + [align.clone()]
+            cur_set_aligns = [sorted_aligns[i] for i in scored_set.indexes] + [align]
             score, uncovered = get_score(scored_set.score, cur_set_aligns, ref_lens, is_cyclic, scored_set.uncovered,
                                          seq, region_struct_variations, penalties)
             if score is None:  # incorrect set, i.e. internal overlap excluding resulted in incorrectly short alignment
@@ -249,7 +257,7 @@ def get_best_aligns_sets(sorted_aligns, ctg_len, stdout_f, seq, ref_lens, is_cyc
             # we can enlarge the set with "earlier" alignments only
             if scored_set.indexes and scored_set.indexes[-1] >= putative_set.indexes[0]:
                 break
-            cur_set_aligns = [sorted_aligns[i].clone() for i in scored_set.indexes] + [align.clone()]
+            cur_set_aligns = [sorted_aligns[i] for i in scored_set.indexes] + [align]
             score, uncovered = get_score(scored_set.score, cur_set_aligns, ref_lens, is_cyclic, scored_set.uncovered,
                                          seq, region_struct_variations, penalties)
             if score is not None:
@@ -294,10 +302,11 @@ def get_added_len(set_aligns, cur_align):
 
 def get_score(score, aligns, ref_lens, is_cyclic, uncovered_len, seq, region_struct_variations, penalties):
     if len(aligns) > 1:
-        align1, align2 = aligns[-2], aligns[-1]
+        align1, align2 = aligns[-2].clone(), aligns[-1].clone()
         is_fake_translocation = is_fragmented_ref_fake_translocation(align1, align2, ref_lens)
         overlaped_len = max(0, align1.end() - align2.start() + 1)
         if len(aligns) > 2:  # does not affect score and uncovered but it is important for further checking on set correctness
+            aligns[-3] = aligns[-3].clone()
             exclude_internal_overlaps(aligns[-3], align1)
         reduced_len, _ = exclude_internal_overlaps(align1, align2)  # reduced_len is for align1 only
         # check whether the set is still correct, i.e both alignments are rather large
@@ -324,7 +333,7 @@ def get_score(score, aligns, ref_lens, is_cyclic, uncovered_len, seq, region_str
             score -= misassembly - Misassembly.INVERSION
         elif aux_data['is_sv']:
             misassembly_penalty = 0
-        elif abs(aux_data['inconsistency']) > qconfig.MAX_INDEL_LENGTH and not aux_data['is_scaffold_gap']:
+        elif abs(aux_data['inconsistency']) > qconfig.local_misassembly_min_length and not aux_data['is_scaffold_gap']:
             misassembly_penalty = penalties['local']
         elif aux_data['is_scaffold_gap']:
             misassembly_penalty = penalties['scaffold']
