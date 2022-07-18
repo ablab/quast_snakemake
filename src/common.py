@@ -7,6 +7,7 @@ import gzip
 from functools import partial
 
 from Bio import SeqIO
+from ast import literal_eval
 
 
 def open_gzipsafe(filename):
@@ -15,9 +16,14 @@ def open_gzipsafe(filename):
 
 
 def read_fasta(input_file):
-    with open_gzipsafe(input_file) as f:
-        for record in SeqIO.parse(f, 'fasta'):
-            yield record
+    try:
+        with open_gzipsafe(input_file) as f:
+            for record in SeqIO.parse(f, 'fasta'):
+                yield record
+    except gzip.BadGzipFile:
+        with open(input_file) as f:
+            for record in SeqIO.parse(f, 'fasta'):
+                yield record
 
 
 def write_fasta(output_file, sequences):
@@ -63,5 +69,16 @@ def save_csv(df, filename):
     df.to_csv(filename)
 
 
+def read_result_file(file):
+    return pd.read_csv(file, header=0, names=['val'], converters={'val': literal_converter}).squeeze("columns")
+
+
 def save_csv_from_dict(d, filename, add_header=True):
-    pd.DataFrame.from_dict(dict([(k,pd.Series(v)) for k,v in d.items()]),orient='index').to_csv(filename, header=add_header)
+    pd.DataFrame.from_dict(dict([(k,pd.Series(str(v))) if isinstance(v, list) else (k,pd.Series(v)) for k,v in d.items()]),orient='index').to_csv(filename, header=add_header)
+
+
+def literal_converter(val):
+    try:
+        return literal_eval(val)
+    except ValueError:
+        return val

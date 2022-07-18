@@ -1,10 +1,9 @@
 import os
-from ast import literal_eval
 from os.path import join, isdir
 
 import pandas as pd
 
-from src.common import save_csv_from_dict
+from src.common import save_csv_from_dict, read_result_file
 
 
 class Assembly:
@@ -30,14 +29,8 @@ class Assembly:
                                 'aligned_lengths_by_contigs': self.aligned_lengths_by_contigs},
                                orient='index').to_csv(self.aligned_stats_file)
 
-    def literal_converter(self, val):
-        try:
-            return literal_eval(val)
-        except ValueError:
-            return val
-
     def parse_results(self):
-        self.results = pd.read_csv(self.result_file, index_col=0, header=0, names=['val'], converters={'val': self.literal_converter}).squeeze("columns")
+        self.results = read_result_file(self.result_file)
         df = pd.read_csv(self.aligned_stats_file, index_col=0)
         self.status = df.loc['status'][0]
         self.aligned_lengths = df.loc['aligned_lengths'].dropna().to_list()

@@ -1,6 +1,5 @@
 import argparse
 import shutil
-from ast import literal_eval
 from os.path import exists
 
 from src.aligned_stats import parse_aligner_stats
@@ -62,9 +61,9 @@ def parse_genome_stats(reports, reference_csv, assemblies, labels, output_dirpat
     for label in labels:
         result_fpath = join(genome_analyzer_dirpath, label + '_info.txt')
         if exists(result_fpath):
-            df = pd.read_csv(result_fpath, index_col=0)
+            df = read_result_file(result_fpath)
             for container_kind in df.index:
-                stats = df.loc[container_kind].to_list()
+                stats = df.loc[container_kind]
                 if container_kind == 'operon':
                     results[reporting.Fields.OPERONS + "_full"] = stats[0]
                     results[reporting.Fields.OPERONS + "_partial"] = stats[1]
@@ -86,16 +85,16 @@ def parse_genome_stats(reports, reference_csv, assemblies, labels, output_dirpat
     for i, label in enumerate(labels):
         contig_result_fpath = join(genome_analyzer_dirpath, label + '_contig_info.txt')
         if exists(contig_result_fpath):
-            df = pd.read_csv(contig_result_fpath, index_col=0)
+            df = read_result_file(contig_result_fpath)
 
-            files_features_in_contigs[label] = df.loc['features'].dropna().to_list()
-            files_unsorted_features_in_contigs[label] = df.loc['features_unsorted'].dropna().to_list()
-            files_operons_in_contigs[label] = df.loc['operons'].dropna().to_list()
-            files_unsorted_operons_in_contigs[label] = df.loc['operons_unsorted'].dropna().to_list()
+            files_features_in_contigs[label] = df.loc['features']
+            files_unsorted_features_in_contigs[label] = df.loc['features_unsorted']
+            files_operons_in_contigs[label] = df.loc['operons']
+            files_unsorted_operons_in_contigs[label] = df.loc['operons_unsorted']
             full_found_genes.append(sum(files_features_in_contigs[label]))
             full_found_operons.append(sum(files_operons_in_contigs[label]))
 
-            gaps_count = df.loc["gaps_count"].dropna().to_list()[0]
+            gaps_count = df.loc["gaps_count"][0]
             res_file.write('%-25s| %-10s| %-12s| %-10s|'
                            % (label[:24], reports[label].get_field(reporting.Fields.MAPPEDGENOME),
                               reports[label].get_field(reporting.Fields.DUPLICATION_RATIO), gaps_count))

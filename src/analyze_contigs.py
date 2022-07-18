@@ -396,7 +396,7 @@ def analyze_contigs(ca_output, contigs_fpath, unaligned_fpath, unaligned_info_fp
     if qconfig.unaligned_mis_threshold == 0.0:
         half_unaligned_with_misassembly = None
 
-    result = {'region_misassemblies': [region_misassemblies],
+    result = {'region_misassemblies': region_misassemblies,
               'misassembled_contigs': misassembled_contigs_names,
               'misassembled_bases': [misassembled_contigs[c] for c in misassembled_contigs_names],
               'misassembly_internal_overlap': misassembly_internal_overlap,
