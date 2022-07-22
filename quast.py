@@ -13,6 +13,7 @@ import yaml
 import argparse
 import logging
 from src import qutils
+from src import qconfig
 
 
 logger = logging.getLogger("quast")
@@ -63,7 +64,7 @@ def parse_command_line(description="Snakemake-based QUAST: Quality Assessment To
                         nargs="+",
                         type=str,
                         # action=,  # TODO: do some pre-check/preprocessing in the callback, e.g. make the path absolute
-                        help="Paths to assemblies")
+                        help="Assembly file(s)")
 
     parser.add_argument("--output-dir", "-o",
                         type=str,
@@ -74,6 +75,19 @@ def parse_command_line(description="Snakemake-based QUAST: Quality Assessment To
                         default=None,
                         # action=,  # TODO: do some pre-check/preprocessing in the callback, e.g. make the path absolute
                         help="Reference genome")
+    parser.add_argument("--features", "-g",
+                        type=str,
+                        action="append",
+                        # action=,  # TODO: do some pre-check/preprocessing in the callback, e.g. make the path absolute
+                        help="File with genomic feature coordinates in the reference (GFF, BED, NCBI or TXT). "
+                             "Could be specified in the '[type:]<filepath>' format where 'type' limits "
+                             "the search to features of a specific type only, e.g., 'CDS'")
+
+    parser.add_argument("--min-contig", "-m",
+                        type=int,
+                        default=500,
+                        # action=,  # TODO: check it is >= 0
+                        help="Lower threshold for contig/scaffold length")
 
     # Snakemake key running parameters (affects behaviour)
     parser.add_argument("--threads", "-t", "--cores", "--jobs", "-j",
@@ -137,6 +151,19 @@ def prepare_config(args):
 
     if args.reference is not None:
         config["reference"] = process_path(args.reference)
+
+    config["features"] = []
+    config["features_files"] = []
+    if args.features:
+        for value in args.features:
+            if ':' in value:
+                feature, fpath = value.split(':')
+            else:
+                feature, fpath = qconfig.ALL_FEATURES_TYPE, value  # special case -- read all features
+            config["features"].append(feature)
+            config["features_files"].append(process_path(fpath))
+
+    config["min_contig"] = args.min_contig
 
     with open(os.path.join(args.output_dir, config_name), 'w') as dst:
         yaml.dump(config, dst)
