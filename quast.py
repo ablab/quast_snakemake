@@ -59,16 +59,21 @@ def parse_command_line(description="Snakemake-based QUAST: Quality Assessment To
     parser = argparse.ArgumentParser(description=description)
 
     # QUAST parameters
-    parser.add_argument("--output-dir", "-o",
-                        type=str,
-                        # action=,  # TODO: do some pre-check/preprocessing in the callback, e.g. make the path absolute
-                        help="Output directory")
-
     parser.add_argument("contigs_fpaths",
                         nargs="+",
                         type=str,
                         # action=,  # TODO: do some pre-check/preprocessing in the callback, e.g. make the path absolute
                         help="Paths to assemblies")
+
+    parser.add_argument("--output-dir", "-o",
+                        type=str,
+                        # action=,  # TODO: do some pre-check/preprocessing in the callback, e.g. make the path absolute
+                        help="Output directory")
+    parser.add_argument("--reference", "-r",
+                        type=str,
+                        default=None,
+                        # action=,  # TODO: do some pre-check/preprocessing in the callback, e.g. make the path absolute
+                        help="Reference genome")
 
     # Snakemake key running parameters (affects behaviour)
     parser.add_argument("--threads", "-t", "--cores", "--jobs", "-j",
@@ -130,6 +135,9 @@ def prepare_config(args):
     contigs_labels = qutils.process_labels(args.contigs_fpaths)
     config["samples"] = dict(zip(contigs_labels, map(process_path, args.contigs_fpaths)))
 
+    if args.reference is not None:
+        config["reference"] = process_path(args.reference)
+
     with open(os.path.join(args.output_dir, config_name), 'w') as dst:
         yaml.dump(config, dst)
 
@@ -157,7 +165,7 @@ def main():
 
     config = prepare_config(args)
 
-    rc = snakemake.snakemake(snakefile=snakemake_file_no_ref,  # snakemake_file_general,
+    rc = snakemake.snakemake(snakefile=snakemake_file_no_ref if args.reference is None else snakemake_file_general,
                              workdir=os.path.dirname(__file__),
                              cores=args.threads,
                              forceall=args.forceall,
