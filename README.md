@@ -25,7 +25,7 @@ Now just activate the environment and you are ready to go!
 Note: you may need to run `mamba init` and restart the shell to enable `mamba activate` for the first time; or simply use `conda activate quast_sm`.
 
 ### Quick start:
-To run QUAST on sample files from `./test_data/` (configurable via `config.yaml`) type
-
-    $ snakemake --cores 4 -p -s quast.smk   # test with reference
-    $ snakemake --cores 4 -p -s quast_no_ref.smk    # test without reference, only simple stats are computed
+To run QUAST on sample files from `./test_data/` type one of the following sample commands
+    
+    $ ./quast.py -o quast_test_output_with_ref test_data/contigs_1.fasta test_data/contigs_2.fasta -t 4 -r test_data/reference.fasta -g gene:test_data/genes.gff -g operon:test_data/operons.bed  # test with reference
+    $ ./quast.py -o quast_test_output_no_ref test_data/contigs_1.fasta test_data/contigs_2.fasta
