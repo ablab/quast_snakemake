@@ -379,6 +379,7 @@ def analyze_contigs(ca_output, contigs_fpath, unaligned_fpath, unaligned_info_fp
 
             #Increment unaligned contig count and bases
             unaligned += 1
+            seq = str(record.seq)
             number_ns = seq.count('N')
             fully_unaligned_bases += ctg_len - number_ns
             ca_output.stdout_f.write('\t\tUnaligned bases: %d (number of Ns: %d)\n' % (ctg_len, number_ns))
