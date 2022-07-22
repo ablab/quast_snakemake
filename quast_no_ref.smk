@@ -4,7 +4,7 @@ from os.path import join, isdir
 from scripts.gene_finding.run_busco import get_lineage
 from src.qutils import get_path_to_program, get_dir_for_download
 
-configfile: "config.yaml"
+# configfile: "config.yaml"
 
 corrected_dirpath = join(config['output_dir'], config['CORRECTED_DIRPATH'])
 
