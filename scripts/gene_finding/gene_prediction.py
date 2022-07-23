@@ -107,6 +107,7 @@ def run_glimmerHMM(assembly_label, contigs_fpath, gff_fpath, tmp_dir):
 def run_prodigal(contigs_fpath, gff_fpath):
     tool_exec_fpath = get_path_to_program('prodigal')
     if not tool_exec_fpath:
+        print_error('Cannot find Prodigal tool. Please install it or turn off gene prediction.')
         return None, None
 
     contigs = {}
@@ -119,7 +120,15 @@ def run_prodigal(contigs_fpath, gff_fpath):
     if return_code == 0:
         return gff_fpath, contigs
     else:
-        return None, None
+        # try to run prodigal in anonymous mode (not enough data)
+        return_code = qutils.call_subprocess(
+            [tool_exec_fpath, '-i', contigs_fpath, '-f', 'gff', '-o', gff_fpath, '-p', 'anon'],
+                stdout=sys.stderr,
+                indent='    ')
+        if return_code == 0:
+            return gff_fpath, contigs
+        else:
+            return None, None
 
 
 def main():
