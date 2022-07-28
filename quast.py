@@ -57,80 +57,95 @@ def init_logger(args):
 
 
 def parse_command_line(description="Snakemake-based QUAST: Quality Assessment Tool for Genome Assemblies"):
-    parser = argparse.ArgumentParser(description=description)
+    parser = argparse.ArgumentParser(description=description, add_help=False)
 
-    # QUAST parameters
-    parser.add_argument("contigs_fpaths",
-                        nargs="+",
-                        type=str,
-                        # action=,  # TODO: do some pre-check/preprocessing in the callback, e.g. make the path absolute
-                        help="Assembly file(s)")
+    positional = parser.add_argument_group('Positional argument (required)')
+    positional.add_argument("contigs_fpaths",
+                            nargs="+",
+                            type=str,
+                            metavar="ASSEMBLY_FILE",
+                            # action=,  # TODO: do some pre-check/preprocessing in the callback, e.g. make the path absolute
+                            help="Assembly file(s) in the FASTA format.")
 
-    parser.add_argument("--output-dir", "-o",
-                        type=str,
-                        # action=,  # TODO: do some pre-check/preprocessing in the callback, e.g. make the path absolute
-                        help="Output directory")
-    parser.add_argument("--reference", "-r",
-                        type=str,
-                        default=None,
-                        # action=,  # TODO: do some pre-check/preprocessing in the callback, e.g. make the path absolute
-                        help="Reference genome")
-    parser.add_argument("--features", "-g",
-                        type=str,
-                        action="append",
-                        # action=,  # TODO: do some pre-check/preprocessing in the callback, e.g. make the path absolute
-                        help="File with genomic feature coordinates in the reference (GFF, BED, NCBI or TXT). "
-                             "Could be specified in the '[type:]<filepath>' format where 'type' limits "
-                             "the search to features of a specific type only, e.g., 'CDS'")
+    main_options = parser.add_argument_group('Main options')
+    main_options.add_argument("--output-dir", "-o",
+                              type=str,
+                              metavar="DIR",
+                              # action=,  # TODO: do some pre-check/preprocessing in the callback, e.g. make the path absolute
+                              help="Output directory.")
+    main_options.add_argument("--reference", "-r",
+                              type=str,
+                              metavar="FILE",
+                              default=None,
+                              # action=,  # TODO: do some pre-check/preprocessing in the callback, e.g. make the path absolute
+                              help="Reference genome file in the FASTA format.")
+    main_options.add_argument("--features", "-g",
+                              type=str,
+                              metavar="FILE",
+                              action="append",
+                              # action=,  # TODO: do some pre-check/preprocessing in the callback, e.g. make the path absolute
+                              help="File with genomic feature coordinates in the reference (GFF, BED, NCBI or TXT). "
+                                   "Could be specified in the '[type:]<filepath>' format where 'type' limits "
+                                   "the search to features of a specific type only, e.g., 'CDS'.")
 
-    parser.add_argument("--min-contig", "-m",
-                        type=int,
-                        default=500,
-                        # action=,  # TODO: check it is >= 0
-                        help="Lower threshold for contig/scaffold length")
+    main_options.add_argument("--min-contig", "-m",
+                              type=int,
+                              metavar="N",
+                              default=500,
+                              # action=,  # TODO: check it is >= 0
+                              help="Lower threshold for contig/scaffold length.")
+    main_options.add_argument("--threads", "-t", "--cores", "--jobs", "-j",
+                              action="store",
+                              dest="threads",
+                              const=snakemake.utils.available_cpu_count(),
+                              nargs="?",
+                              metavar="N",
+                              type=int,
+                              help="Use at most N cores in parallel (default: 1). "
+                                   "If N is omitted, the limit is set to the number of "
+                                   "available cores.")
 
-    # Snakemake key running parameters (affects behaviour)
-    parser.add_argument("--threads", "-t", "--cores", "--jobs", "-j",
-                        action="store",
-                        const=snakemake.utils.available_cpu_count(),
-                        nargs="?",
-                        metavar="N",
-                        type=int,
-                        help=("Use at most N cores in parallel (default: 1). "
-                              "If N is omitted, the limit is set to the number of "
-                              "available cores."))
+    snakemake_log_options = parser.add_argument_group('Advanced: Snakemake logging options')
+    snakemake_log_options.add_argument("--verbose",
+                                       action="store_true",
+                                       help="Print debugging output.")
+    snakemake_log_options.add_argument("--stats",
+                                       metavar="FILE",
+                                       help="Write pipeline execution statistics to the JSON file.")
+    snakemake_log_options.add_argument("--nocolor",
+                                       action="store_true",
+                                       help="Do not use a colored output.")
+    snakemake_log_options.add_argument("--quiet", "-q",
+                                       action="store_true",
+                                       help="Do not output any progress or rule information.")
+    snakemake_log_options.add_argument("--printshellcmds", "-p",
+                                       action="store_true",
+                                       help="Print out the shell commands that will be executed.")
 
-    parser.add_argument("--forceall", "-F",
-                        action="store_true",
-                        help=("Force the execution of the pipeline regardless of already created "
-                              "output."))
+    snakemake_run_options = parser.add_argument_group('Advanced: Snakemake execution options')
+    snakemake_run_options.add_argument("--forceall", "-F",
+                                       action="store_true",
+                                       help="Force the execution of the pipeline regardless of already created output.")
+    snakemake_run_options.add_argument("--forcerun", "-R",
+                                       nargs="*", help=argparse.SUPPRESS)  # TODO: add explicit help message
+    snakemake_run_options.add_argument("--target",
+                                       nargs="*",
+                                       default=None,
+                                       help=argparse.SUPPRESS)  # TODO: add explicit help message
 
-    # Snakemake additional running parameters (logging-related)
-    parser.add_argument("--verbose",
-                        action="store_true",
-                        help="Print debugging output.")
-    parser.add_argument("--stats",
-                        metavar="FILE",
-                        help="Write pipeline execution statistics to the JSON file.")
-    parser.add_argument("--nocolor",
-                        action="store_true",
-                        help="Do not use a colored output.")
-    parser.add_argument("--quiet", "-q",
-                        action="store_true",
-                        help="Do not output any progress or rule information.")
-    parser.add_argument("--printshellcmds", "-p",
-                        action="store_true",
-                        help="Print out the shell commands that will be executed.")
-
-    # Snakemake extra (advanced)
-    parser.add_argument("--forcerun", "-R",
-                        nargs="*", help=argparse.SUPPRESS)
-    parser.add_argument("--target",
-                        nargs="*",
-                        default=None,
-                        help=argparse.SUPPRESS)
+    other_options = parser.add_argument_group('Other options')
+    other_options.add_argument("--help", "-h",
+                               action='help',
+                               default=argparse.SUPPRESS,
+                               help="Print help message and exit.")
+    other_options.add_argument("--version", "-v",
+                               action="version",
+                               version="6.0.0",  # TODO: store version somewhere else (version.py? config.yaml?) and read from there
+                               default=argparse.SUPPRESS,
+                               help="Print version and exit.")
 
     args = parser.parse_args()
+
     # TODO: various checks and assertions, e.g., existence of contigs_fpaths
     return args
 
