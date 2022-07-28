@@ -105,6 +105,38 @@ def parse_command_line(description="Snakemake-based QUAST: Quality Assessment To
                                    "If N is omitted, the limit is set to the number of "
                                    "available cores.")
 
+    advanced_options = parser.add_argument_group('Advanced: QUAST pipeline options')
+    advanced_options.add_argument("--eukaryote", "-e",
+                                  dest="is_eukaryote",
+                                  action="store_true",
+                                  help="Genome is eukaryotic (primarily affects gene prediction).")
+    advanced_options.add_argument("--fungus",
+                                  dest="is_fungus",
+                                  action="store_true",
+                                  help="Genome is fungal (primarily affects gene prediction).")
+    advanced_options.add_argument("--k-mer-stats", "-k",
+                                  dest="kmer_analysis",
+                                  action="store_true",
+                                  help="Compute k-mer-based quality metrics (recommended for large genomes). "
+                                       "This may significantly increase memory and time consumption on large genomes")
+    advanced_options.add_argument("--gene-finding", "-f",
+                                  dest="gene_prediction",
+                                  action="store_true",
+                                  help="Predict genes using Prodigital 'prodigal' (prokaryotes, default) or "
+                                       "Glimmerhmm (eukaryotes, use --eukaryote or --fungus).")
+    advanced_options.add_argument("--conserved-genes-finding", "--busco", "-b",
+                                  dest="busco",
+                                  action="store_true",
+                                  help="Count conserved orthologs using BUSCO (only on Linux).")
+
+    speed_options = parser.add_argument_group('Advanced: QUAST speedup options')
+    speed_options.add_argument("--no-sv",
+                               dest="search_sv",
+                               default=True,
+                               action="store_false",
+                               help="Do not run structural variation detection "
+                                    "(make sense only if reads are specified).")
+
     snakemake_log_options = parser.add_argument_group('Advanced: Snakemake logging options')
     snakemake_log_options.add_argument("--verbose",
                                        action="store_true",
@@ -179,6 +211,12 @@ def prepare_config(args):
             config["features_files"].append(process_path(fpath))
 
     config["min_contig"] = args.min_contig
+    config["is_prokaryote"] = not (args.is_eukaryote or args.is_fungus)
+    config["is_fungus"] = args.is_fungus
+    config["busco"] = args.busco
+    config["gene_prediction"] = args.gene_prediction
+    config["kmer_analysis"] = args.kmer_analysis
+    config["search_sv"] = args.search_sv
 
     with open(os.path.join(args.output_dir, config_name), 'w') as dst:
         yaml.dump(config, dst)
