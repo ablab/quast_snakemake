@@ -70,7 +70,8 @@ def run_aligner(reads, ref_fpath, sam_fpath, out_sam_fpaths, output_dir, max_thr
             preset = ' -ax map-ont '
         cmdline = 'minimap2' + ' -t ' + str(max_threads) + preset + ref_fpath + ' ' + reads
     else:
-        cmdline = bwa_cmd + (' -p ' if reads_type == 'interleaved' else ' ') + ref_fpath + ' ' + reads
+        reads_are_interlaced = len(reads.split()) == 1 and (reads_type == 'pe' or reads_type == 'mp')
+        cmdline = bwa_cmd + (' -p ' if reads_are_interlaced else ' ') + ref_fpath + ' ' + reads
     output_fpath = add_suffix(sam_fpath, reads_type + str(idx + 1))
     bam_fpath = output_fpath.replace('.sam', '.bam')
     qutils.call_subprocess(shlex.split(cmdline), stdout=open(output_fpath, 'w'))

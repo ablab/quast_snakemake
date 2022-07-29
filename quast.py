@@ -83,6 +83,7 @@ def parse_command_line(description="Snakemake-based QUAST: Quality Assessment To
                               type=str,
                               metavar="FILE",
                               action="append",
+                              default=[],
                               # action=,  # TODO: do some pre-check/preprocessing in the callback, e.g. make the path absolute
                               help="File with genomic feature coordinates in the reference (GFF, BED, NCBI or TXT). "
                                    "Could be specified in the '[type:]<filepath>' format where 'type' limits "
@@ -128,6 +129,72 @@ def parse_command_line(description="Snakemake-based QUAST: Quality Assessment To
                                   dest="busco",
                                   action="store_true",
                                   help="Count conserved orthologs using BUSCO (only on Linux).")
+
+    read_options = parser.add_argument_group('Advanced: QUAST reads options')
+    # TODO: add action callback with simple pre-check (file existence) and preprocessing (e.g. make the path absolute)
+    read_options.add_argument("--pe1", "-1",
+                              type=str,
+                              dest="forward_reads",
+                              metavar="FILE",
+                              action="append",
+                              default=[],
+                              help="File with forward paired-end reads (in FASTQ format, may be gzipped).")
+    read_options.add_argument("--pe2", "-2",
+                              type=str,
+                              dest="reverse_reads",
+                              metavar="FILE",
+                              action="append",
+                              default=[],
+                              help="File with reverse paired-end reads (in FASTQ format, may be gzipped).")
+    read_options.add_argument("--pe12",
+                              type=str,
+                              dest="interlaced_reads",
+                              metavar="FILE",
+                              action="append",
+                              default=[],
+                              help="File with interlaced forward and reverse paired-end reads (in FASTQ format, may be gzipped).")
+    read_options.add_argument("--mp1",
+                              type=str,
+                              dest="mp_forward_reads",
+                              metavar="FILE",
+                              action="append",
+                              default=[],
+                              help="File with forward mate-pair reads (in FASTQ format, may be gzipped).")
+    read_options.add_argument("--mp2",
+                              type=str,
+                              dest="mp_reverse_reads",
+                              metavar="FILE",
+                              action="append",
+                              default=[],
+                              help="File with reverse mate-pair reads (in FASTQ format, may be gzipped).")
+    read_options.add_argument("--mp12",
+                              type=str,
+                              dest="mp_interlaced_reads",
+                              metavar="FILE",
+                              action="append",
+                              default=[],
+                              help="File with interlaced forward and reverse mate-pair reads (in FASTQ format, may be gzipped).")
+    read_options.add_argument("--single",
+                              type=str,
+                              dest="unpaired_reads",
+                              metavar="FILE",
+                              action="append",
+                              default=[],
+                              help="File with unpaired short reads (in FASTQ format, may be gzipped).")
+    read_options.add_argument("--pacbio",
+                              type=str,
+                              dest="pacbio_reads",
+                              metavar="FILE",
+                              action="append",
+                              default=[],
+                              help="File with PacBio reads (in FASTQ format, may be gzipped).")
+    read_options.add_argument("--nanopore",
+                              type=str,
+                              dest="nanopore_reads",
+                              metavar="FILE",
+                              action="append",
+                              default=[],
+                              help="File with Oxford Nanopore reads (in FASTQ format, may be gzipped).")
 
     speed_options = parser.add_argument_group('Advanced: QUAST speedup options')
     speed_options.add_argument("--no-sv",
@@ -201,14 +268,13 @@ def prepare_config(args):
 
     config["features"] = []
     config["features_files"] = []
-    if args.features:
-        for value in args.features:
-            if ':' in value:
-                feature, fpath = value.split(':')
-            else:
-                feature, fpath = qconfig.ALL_FEATURES_TYPE, value  # special case -- read all features
-            config["features"].append(feature)
-            config["features_files"].append(process_path(fpath))
+    for value in args.features:
+        if ':' in value:
+            feature, fpath = value.split(':')
+        else:
+            feature, fpath = qconfig.ALL_FEATURES_TYPE, value  # special case -- read all features
+        config["features"].append(feature)
+        config["features_files"].append(process_path(fpath))
 
     config["min_contig"] = args.min_contig
     config["is_prokaryote"] = not (args.is_eukaryote or args.is_fungus)
@@ -217,6 +283,31 @@ def prepare_config(args):
     config["gene_prediction"] = args.gene_prediction
     config["kmer_analysis"] = args.kmer_analysis
     config["search_sv"] = args.search_sv
+
+    config["reads_files"] = []
+    config["reads_types"] = []
+    # TODO: check that number of forward and reverse read files is the same (both for PE and MP)
+    for read1, read2 in zip(args.forward_reads, args.reverse_reads):
+        config["reads_files"].append(process_path(read1) + ',' + process_path(read2))
+        config["reads_types"].append('pe')
+    for read in args.interlaced_reads:
+        config["reads_files"].append(process_path(read))
+        config["reads_types"].append('pe')
+    for read1, read2 in zip(args.mp_forward_reads, args.mp_reverse_reads):
+        config["reads_files"].append(process_path(read1) + ',' + process_path(read2))
+        config["reads_types"].append('mp')
+    for read in args.mp_interlaced_reads:
+        config["reads_files"].append(process_path(read))
+        config["reads_types"].append('mp')
+    for read in args.unpaired_reads:
+        config["reads_files"].append(process_path(read))
+        config["reads_types"].append('single')
+    for read in args.pacbio_reads:
+        config["reads_files"].append(process_path(read))
+        config["reads_types"].append('pacbio')
+    for read in args.nanopore_reads:
+        config["reads_files"].append(process_path(read))
+        config["reads_types"].append('nanopore')
 
     with open(os.path.join(args.output_dir, config_name), 'w') as dst:
         yaml.dump(config, dst)
